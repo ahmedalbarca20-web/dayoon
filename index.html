@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
   <meta charset="UTF-8">
 
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   >
 
   <meta name="theme-color" content="#0f172a">
@@ -20,40 +21,144 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     html,
     body {
       margin: 0;
       padding: 0;
       width: 100%;
       min-height: 100%;
-      overflow-x: hidden;
-      touch-action: manipulation;
+      font-family: "Tajawal", Arial, sans-serif;
       -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
     }
 
     input,
     textarea,
-    select,
-    button {
+    button,
+    select {
       font-family: inherit;
       font-size: 16px;
     }
 
-    input,
-    textarea,
-    select {
-      touch-action: manipulation;
-    }
-
-    button {
-      touch-action: manipulation;
-    }
-
     .hidden {
       display: none !important;
+    }
+
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      background: #0f172a;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .loading-screen.hidden {
+      display: none !important;
+    }
+
+    .contract-banner {
+      margin: 12px 0;
+      padding: 14px 18px;
+      border-radius: 14px;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+
+    .contract-banner.expired {
+      background: #fef2f2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    .contract-banner.disabled {
+      background: #fff7ed;
+      color: #c2410c;
+      border-color: #fed7aa;
+    }
+
+    .contract-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .contract-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .contract-status.active {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .contract-status.disabled {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .contract-status.expired {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .office-card {
+      cursor: default;
+    }
+
+    .office-contract {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .modal-content {
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: 700;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      outline: none;
+      background: white;
+    }
+
+    .form-group textarea {
+      min-height: 90px;
+      resize: vertical;
     }
 
     .form-row {
@@ -62,194 +167,134 @@
       gap: 12px;
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 650px) {
       .form-row {
         grid-template-columns: 1fr;
       }
     }
 
-    .contract-box {
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 12px;
-      background: #f1f5f9;
-      border: 1px solid #e2e8f0;
-    }
-
-    .contract-box.warning {
-      background: #fff7ed;
-      border-color: #fed7aa;
-      color: #9a3412;
-    }
-
-    .contract-box.danger {
-      background: #fef2f2;
-      border-color: #fecaca;
-      color: #991b1b;
-    }
-
-    .contract-box.success {
-      background: #f0fdf4;
-      border-color: #bbf7d0;
-      color: #166534;
-    }
-
-    .office-card {
-      position: relative;
-    }
-
-    .office-info {
-      line-height: 1.9;
-    }
-
-    .office-actions {
+    .admin-contract-controls {
       display: flex;
-      gap: 8px;
       flex-wrap: wrap;
-      margin-top: 12px;
+      gap: 7px;
+      margin-top: 10px;
     }
 
-    .login-error {
-      color: #b91c1c;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      padding: 10px;
-      border-radius: 10px;
-      margin-bottom: 12px;
-    }
-
-    .login-success {
-      color: #166534;
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      padding: 10px;
-      border-radius: 10px;
-      margin-bottom: 12px;
-    }
-
-    .debt-positive {
-      color: #dc2626;
-      font-weight: 800;
-    }
-
-    .debt-zero {
-      color: #16a34a;
-      font-weight: 800;
-    }
-
-    .txn-purchase {
-      color: #dc2626;
-    }
-
-    .txn-payment {
-      color: #16a34a;
-    }
-
-    .loading-screen {
-      position: fixed;
-      inset: 0;
-      background: #0f172a;
+    .btn-contract-on {
+      background: #16a34a;
       color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 99999;
-      font-size: 20px;
-      font-weight: 700;
+      border: 0;
     }
 
-    .loading-screen.hidden {
-      display: none;
+    .btn-contract-off {
+      background: #dc2626;
+      color: white;
+      border: 0;
+    }
+
+    .login-message {
+      margin-bottom: 12px;
     }
   </style>
 </head>
 
 <body>
 
+  <!-- شاشة التحميل -->
   <div id="loadingScreen" class="loading-screen">
     جارٍ تحميل دفتر الديون...
   </div>
 
-  <!-- ======================================================
+
+  <!-- =====================================================
        تسجيل الدخول
-  ======================================================= -->
+       ===================================================== -->
 
   <div id="loginView" class="login-view hidden">
 
     <div class="login-card">
 
       <div class="login-logo">
+
         <span class="logo-icon">📒</span>
+
         <h1>دفتر الديون</h1>
+
       </div>
 
       <p class="login-subtitle">
         سجّل دخولك للمتابعة
       </p>
 
+
       <div
         id="loginMessage"
-        class="login-message hidden"
-      ></div>
+        class="login-message hidden">
+      </div>
+
 
       <form id="loginForm">
 
         <div class="form-group">
 
-          <label for="loginEmail">
+          <label>
             البريد الإلكتروني / اسم المستخدم
           </label>
 
           <input
             type="text"
             id="loginEmail"
-            placeholder="البريد الإلكتروني أو اسم المستخدم"
+            placeholder="البريد أو اسم المستخدم"
             autocomplete="username"
             required
           >
 
         </div>
 
+
         <div class="form-group">
 
-          <label for="loginPassword">
+          <label>
             كلمة المرور
           </label>
 
           <input
             type="password"
             id="loginPassword"
-            placeholder="كلمة المرور"
+            placeholder="••••••••"
             autocomplete="current-password"
             required
           >
 
         </div>
 
+
         <button
           type="submit"
           class="btn btn-primary login-btn"
-          id="loginBtn"
-        >
+          id="loginBtn">
+
           دخول
+
         </button>
 
       </form>
 
+
       <p
         class="login-hint"
-        id="loginHint"
-      ></p>
+        id="loginHint">
+      </p>
+
 
       <div
         class="conn-status"
-        id="connStatus"
-      >
+        id="connStatus">
 
         <span
           class="conn-dot"
-          id="connDot"
-        ></span>
+          id="connDot">
+        </span>
 
         <span id="connText">
           جارٍ الفحص...
@@ -262,9 +307,9 @@
   </div>
 
 
-  <!-- ======================================================
+  <!-- =====================================================
        لوحة الأدمن
-  ======================================================= -->
+       ===================================================== -->
 
   <div id="adminView" class="hidden">
 
@@ -285,12 +330,13 @@
             </h1>
 
             <span class="subtitle">
-              إدارة المكاتب والبروفايلات
+              إدارة المكاتب والعقود
             </span>
 
           </div>
 
         </div>
+
 
         <div class="header-actions">
 
@@ -304,8 +350,7 @@
 
               <span
                 class="stat-value"
-                id="officesCount"
-              >
+                id="officesCount">
                 0
               </span>
 
@@ -313,11 +358,13 @@
 
           </div>
 
+
           <button
             class="btn btn-logout"
-            id="adminLogoutBtn"
-          >
+            id="adminLogoutBtn">
+
             خروج
+
           </button>
 
         </div>
@@ -341,28 +388,30 @@
 
         </div>
 
+
         <button
           class="btn btn-primary"
-          id="addOfficeBtn"
-        >
+          id="addOfficeBtn">
+
           + إضافة مكتب
+
         </button>
 
       </div>
 
+
       <div
         id="officesList"
-        class="people-list"
-      ></div>
+        class="people-list">
+      </div>
+
 
       <div
         id="officesEmpty"
-        class="empty-state hidden"
-      >
+        class="empty-state hidden">
 
         <p>
           لا يوجد مكاتب بعد.
-          اضغط "إضافة مكتب" لإنشاء أول بروفايل.
         </p>
 
       </div>
@@ -372,9 +421,9 @@
   </div>
 
 
-  <!-- ======================================================
+  <!-- =====================================================
        تطبيق المكتب
-  ======================================================= -->
+       ===================================================== -->
 
   <div id="appView" class="hidden">
 
@@ -396,14 +445,14 @@
 
             <span
               class="subtitle"
-              id="appSubtitle"
-            >
+              id="appSubtitle">
               إدارة الديون بسهولة
             </span>
 
           </div>
 
         </div>
+
 
         <div class="header-actions">
 
@@ -417,12 +466,12 @@
 
               <span
                 class="stat-value"
-                id="totalDebt"
-              >
+                id="totalDebt">
                 0
               </span>
 
             </div>
+
 
             <div class="stat-box">
 
@@ -432,8 +481,7 @@
 
               <span
                 class="stat-value"
-                id="peopleCount"
-              >
+                id="peopleCount">
                 0
               </span>
 
@@ -441,18 +489,22 @@
 
           </div>
 
+
           <button
             class="btn btn-ghost hidden"
-            id="backToAdminBtn"
-          >
+            id="backToAdminBtn">
+
             → لوحة الإدارة
+
           </button>
+
 
           <button
             class="btn btn-logout"
-            id="logoutBtn"
-          >
+            id="logoutBtn">
+
             خروج
+
           </button>
 
         </div>
@@ -464,8 +516,8 @@
 
         <div
           id="contractBanner"
-          class="contract-banner hidden"
-        ></div>
+          class="contract-banner hidden">
+        </div>
 
       </div>
 
@@ -478,8 +530,7 @@
 
       <section
         id="peopleView"
-        class="view"
-      >
+        class="view">
 
         <div class="toolbar">
 
@@ -493,30 +544,56 @@
 
           </div>
 
+
+          <button
+            class="btn btn-ghost"
+            id="exportBtn">
+
+            ⬇ تصدير نسخة
+
+          </button>
+
+
+          <button
+            class="btn btn-ghost"
+            id="importBtn">
+
+            ⬆ استيراد نسخة
+
+          </button>
+
+
           <button
             class="btn btn-primary"
-            id="addPersonBtn"
-          >
+            id="addPersonBtn">
+
             + إضافة شخص
+
           </button>
 
         </div>
 
 
+        <input
+          type="file"
+          id="importFile"
+          accept=".json"
+          class="hidden"
+        >
+
+
         <div
           id="peopleList"
-          class="people-list"
-        ></div>
+          class="people-list">
+        </div>
 
 
         <div
           id="emptyState"
-          class="empty-state hidden"
-        >
+          class="empty-state hidden">
 
           <p>
             لا يوجد أشخاص بعد.
-            اضغط "إضافة شخص" للبدء.
           </p>
 
         </div>
@@ -528,16 +605,16 @@
 
       <section
         id="personView"
-        class="view hidden"
-      >
+        class="view hidden">
 
         <div class="person-header">
 
           <button
             class="btn btn-ghost"
-            id="backBtn"
-          >
+            id="backBtn">
+
             → الرجوع للقائمة
+
           </button>
 
         </div>
@@ -545,31 +622,36 @@
 
         <div
           class="person-card"
-          id="personCard"
-        ></div>
+          id="personCard">
+        </div>
 
 
         <div class="actions-bar">
 
           <button
             class="btn btn-success"
-            id="payBtn"
-          >
+            id="payBtn">
+
             تسديد
+
           </button>
+
 
           <button
             class="btn btn-danger"
-            id="purchaseBtn"
-          >
+            id="purchaseBtn">
+
             شراء مباشر
+
           </button>
+
 
           <button
             class="btn btn-edit"
-            id="editPersonBtn"
-          >
+            id="editPersonBtn">
+
             تعديل بيانات الشخص
+
           </button>
 
         </div>
@@ -581,8 +663,7 @@
 
           <span
             class="count-badge"
-            id="txnCount"
-          >
+            id="txnCount">
             0
           </span>
 
@@ -591,8 +672,8 @@
 
         <div
           id="transactionsList"
-          class="transactions-list"
-        ></div>
+          class="transactions-list">
+        </div>
 
       </section>
 
@@ -601,14 +682,13 @@
   </div>
 
 
-  <!-- ======================================================
+  <!-- =====================================================
        Modal
-  ======================================================= -->
+       ===================================================== -->
 
   <div
     id="modal"
-    class="modal hidden"
-  >
+    class="modal hidden">
 
     <div class="modal-content">
 
@@ -620,32 +700,50 @@
 
         <button
           class="modal-close"
-          id="modalClose"
-        >
+          id="modalClose">
+
           ✕
+
         </button>
 
       </div>
 
+
       <div
         class="modal-body"
-        id="modalBody"
-      ></div>
+        id="modalBody">
+      </div>
 
     </div>
 
   </div>
 
 
-  <!-- ======================================================
+  <!-- =====================================================
        Supabase
-  ======================================================= -->
+       ===================================================== -->
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <script src="supabase-config.js?v=20"></script>
+  <script src="supabase-config.js"></script>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
+
+
+  <script>
+    // لا تسمح لشاشة التحميل بالبقاء
+    window.addEventListener("load", function () {
+
+      const screen =
+        document.getElementById("loadingScreen");
+
+      if (screen) {
+        screen.classList.add("hidden");
+        screen.style.display = "none";
+      }
+
+    });
+  </script>
 
 </body>
 </html>

@@ -1,109 +1,147 @@
 (function () {
   "use strict";
 
+  console.log("Starting Debt Book...");
+
   // =========================================================
-  // إعداد Supabase
+  // SUPABASE
   // =========================================================
 
-  function hideLoadingScreen() {
-  const loadingScreen = document.getElementById("loadingScreen");
+  const CFG = window.SUPABASE_CONFIG || {};
 
-  if (loadingScreen) {
-    loadingScreen.classList.add("hidden");
-    loadingScreen.style.display = "none";
-  }
-}
-
-// إخفاء شاشة التحميل مباشرة
-hideLoadingScreen();
-  
-  
-  
-  
-  const CONFIG = window.SUPABASE_CONFIG || {};
-
-  const SUPABASE_URL = CONFIG.SUPABASE_URL || "";
-  const SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY || "";
+  const SUPABASE_URL = CFG.SUPABASE_URL || "";
+  const SUPABASE_ANON_KEY = CFG.SUPABASE_ANON_KEY || "";
 
   let supabaseClient = null;
 
-  function isSupabaseReady() {
-    return (
-      window.supabase &&
-      typeof window.supabase.createClient === "function" &&
-      SUPABASE_URL &&
-      SUPABASE_ANON_KEY &&
-      !SUPABASE_URL.includes("YOUR-") &&
-      !SUPABASE_ANON_KEY.includes("YOUR-")
+  if (
+    window.supabase &&
+    SUPABASE_URL &&
+    SUPABASE_ANON_KEY &&
+    !SUPABASE_URL.includes("YOUR-") &&
+    !SUPABASE_ANON_KEY.includes("YOUR-")
+  ) {
+    supabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY
     );
-  }
 
-  if (isSupabaseReady()) {
-    try {
-      supabaseClient = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true
-          }
-        }
-      );
-
-      console.log("Supabase connected");
-    } catch (error) {
-      console.error("Supabase createClient error:", error);
-    }
+    console.log("Supabase connected");
   } else {
-    console.error("Supabase configuration is missing.");
+    console.error("Supabase configuration is missing");
   }
+
 
   // =========================================================
-  // حالة التطبيق
+  // STATE
   // =========================================================
 
   const state = {
-    role: null, // admin | office
-
+    role: null,
     session: null,
 
-    currentOffice: null,
-    currentPerson: null,
-
     offices: [],
+
+    currentOffice: null,
+    currentOfficeId: null,
+
     people: [],
     transactions: [],
 
-    search: "",
+    currentPersonId: null,
 
-    loading: false
+    searchQuery: "",
+
+    officeSearch: ""
   };
 
+
   // =========================================================
-  // Helpers
+  // HELPERS
   // =========================================================
 
-  const $ = (id) => document.getElementById(id);
-
-  function show(el) {
-    if (!el) return;
-    el.classList.remove("hidden");
+  function $(id) {
+    return document.getElementById(id);
   }
 
-  function hide(el) {
-    if (!el) return;
-    el.classList.add("hidden");
+
+  function hideLoading() {
+    const el = $("loadingScreen");
+
+    if (el) {
+      el.classList.add("hidden");
+      el.style.display = "none";
+    }
   }
 
-  function setText(id, value) {
-    const el = $(id);
-    if (el) el.textContent = value ?? "";
+
+  function showOnly(viewId) {
+
+    [
+      "loginView",
+      "adminView",
+      "appView"
+    ].forEach(function (id) {
+
+      const el = $(id);
+
+      if (el) {
+        el.classList.add("hidden");
+      }
+
+    });
+
+    const target = $(viewId);
+
+    if (target) {
+      target.classList.remove("hidden");
+    }
   }
 
-  function escapeHTML(value) {
-    return String(value ?? "")
+
+  function showLogin() {
+    showOnly("loginView");
+
+    const msg = $("loginMessage");
+
+    if (msg) {
+      msg.classList.add("hidden");
+    }
+  }
+
+
+  function showAdmin() {
+    showOnly("adminView");
+
+    loadOffices();
+  }
+
+
+  function showApp() {
+    showOnly("appView");
+
+    const peopleView = $("peopleView");
+    const personView = $("personView");
+
+    if (peopleView) {
+      peopleView.classList.remove("hidden");
+    }
+
+    if (personView) {
+      personView.classList.add("hidden");
+    }
+
+    loadOfficeData();
+  }
+
+
+  function escapeHtml(value) {
+
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    return String(value)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -111,7 +149,9 @@ hideLoadingScreen();
       .replace(/'/g, "&#039;");
   }
 
-  function money(value) {
+
+  function formatMoney(value) {
+
     const number = Number(value || 0);
 
     return number.toLocaleString("ar-IQ", {
@@ -120,241 +160,222 @@ hideLoadingScreen();
     });
   }
 
-  function formatDate(value) {
-    if (!value) return "-";
 
-    const date = new Date(value);
+  function formatDate(date) {
 
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleDateString("ar-IQ", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    });
-  }
-
-  function formatDateTime(value) {
-    if (!value) return "-";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleString("ar-IQ", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-
-  function notify(message, type = "success") {
-    let box = $("appNotification");
-
-    if (!box) {
-      box = document.createElement("div");
-      box.id = "appNotification";
-
-      box.style.position = "fixed";
-      box.style.top = "20px";
-      box.style.left = "20px";
-      box.style.right = "20px";
-      box.style.maxWidth = "500px";
-      box.style.margin = "auto";
-      box.style.zIndex = "99999";
-      box.style.padding = "15px 18px";
-      box.style.borderRadius = "12px";
-      box.style.color = "#fff";
-      box.style.fontWeight = "700";
-      box.style.textAlign = "center";
-      box.style.boxShadow = "0 10px 30px rgba(0,0,0,.2)";
-
-      document.body.appendChild(box);
-    }
-
-    box.textContent = message;
-
-    box.style.background =
-      type === "error"
-        ? "#dc2626"
-        : type === "warning"
-        ? "#d97706"
-        : "#16a34a";
-
-    box.style.display = "block";
-
-    clearTimeout(box._timer);
-
-    box._timer = setTimeout(() => {
-      box.style.display = "none";
-    }, 3500);
-  }
-
-  function setLoading(loading) {
-    state.loading = loading;
-
-    const btn = $("loginBtn");
-
-    if (btn) {
-      btn.disabled = loading;
-      btn.textContent = loading ? "جارٍ الدخول..." : "دخول";
-    }
-  }
-
-  // =========================================================
-  // الصفحات
-  // =========================================================
-
-  function showLogin() {
-    show($("loginView"));
-    hide($("adminView"));
-    hide($("appView"));
-
-    setLoading(false);
-  }
-
-  function showAdmin() {
-    hide($("loginView"));
-    show($("adminView"));
-    hide($("appView"));
-  }
-
-  function showApp() {
-    hide($("loginView"));
-    hide($("adminView"));
-    show($("appView"));
-  }
-
-  // =========================================================
-  // اتصال Supabase
-  // =========================================================
-
-  function updateConnectionStatus() {
-    const dot = $("connDot");
-    const text = $("connText");
-
-    if (!dot || !text) return;
-
-    if (supabaseClient) {
-      dot.style.background = "#22c55e";
-      text.textContent = "متصل بـ Supabase";
-    } else {
-      dot.style.background = "#ef4444";
-      text.textContent = "Supabase غير متصل";
-    }
-  }
-
-  // =========================================================
-  // Login Message
-  // =========================================================
-
-  function showLoginMessage(message, type = "error") {
-    const box = $("loginMessage");
-
-    if (!box) {
-      notify(message, type);
-      return;
-    }
-
-    box.textContent = message;
-    box.classList.remove("hidden");
-
-    box.style.color = type === "error" ? "#dc2626" : "#16a34a";
-  }
-
-  // =========================================================
-  // تشغيل التطبيق
-  // =========================================================
-
-  async function init() {
-    console.log("Starting Debt Book...");
-
-    updateConnectionStatus();
-
-    // إظهار الدخول مباشرة حتى لا تبقى الصفحة معلقة
-    showLogin();
-
-    if (!supabaseClient) {
-      showLoginMessage(
-        "تعذر الاتصال بـ Supabase. تأكد من supabase-config.js",
-        "error"
-      );
-
-      return;
+    if (!date) {
+      return "-";
     }
 
     try {
-      const { data, error } =
-        await supabaseClient.auth.getSession();
 
-      if (error) {
-        console.error("getSession:", error);
-        return;
-      }
+      return new Date(date).toLocaleDateString(
+        "ar-IQ",
+        {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        }
+      );
 
-      state.session = data.session || null;
-
-      if (state.session) {
-        console.log("Existing Supabase session");
-
-        state.role = "admin";
-
-        showAdmin();
-
-        await loadOffices();
-      }
-    } catch (error) {
-      console.error("Init error:", error);
-      showLogin();
+    } catch (e) {
+      return date;
     }
   }
 
-  // =========================================================
-  // مراقبة Auth
-  // =========================================================
 
-  if (supabaseClient) {
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      console.log("Supabase Auth:", event);
+  function todayString() {
 
-      state.session = session || null;
+    const d = new Date();
 
-      if (event === "SIGNED_OUT") {
-        state.role = null;
-        state.currentOffice = null;
+    const year = d.getFullYear();
 
-        showLogin();
-      }
-    });
+    const month = String(
+      d.getMonth() + 1
+    ).padStart(2, "0");
+
+    const day = String(
+      d.getDate()
+    ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   }
 
+
+  function isContractExpired(office) {
+
+    if (!office) {
+      return true;
+    }
+
+    if (!office.contract_end) {
+      return false;
+    }
+
+    return office.contract_end < todayString();
+  }
+
+
+  function isOfficeAllowed(office) {
+
+    if (!office) {
+      return false;
+    }
+
+    if (office.active !== true) {
+      return false;
+    }
+
+    if (office.contract_active !== true) {
+      return false;
+    }
+
+    if (isContractExpired(office)) {
+      return false;
+    }
+
+    return true;
+  }
+
+
+  function showLoginMessage(message, type) {
+
+    const el = $("loginMessage");
+
+    if (!el) {
+      return;
+    }
+
+    el.textContent = message;
+
+    el.className =
+      "login-message " +
+      (type === "error"
+        ? "error"
+        : "success");
+
+    el.classList.remove("hidden");
+  }
+
+
+  function setLoginLoading(loading) {
+
+    const btn = $("loginBtn");
+
+    if (!btn) {
+      return;
+    }
+
+    btn.disabled = loading;
+
+    btn.textContent =
+      loading
+        ? "جارٍ الدخول..."
+        : "دخول";
+  }
+
+
+  function notify(message, type) {
+
+    // إذا عندك نظام إشعارات في style.css
+    // استخدمه، وإلا alert
+    if (typeof window.showToast === "function") {
+      window.showToast(message, type);
+      return;
+    }
+
+    alert(message);
+  }
+
+
+  function updateConnectionStatus() {
+
+    const dot = $("connDot");
+    const text = $("connText");
+
+    if (!dot || !text) {
+      return;
+    }
+
+    if (supabaseClient) {
+
+      dot.style.background = "#22c55e";
+
+      text.textContent =
+        "متصل بـ Supabase";
+
+    } else {
+
+      dot.style.background = "#ef4444";
+
+      text.textContent =
+        "Supabase غير متصل";
+    }
+  }
+
+
   // =========================================================
-  // تسجيل الدخول
+  // MODAL
+  // =========================================================
+
+  function openModal(title, html) {
+
+    const modal = $("modal");
+    const modalTitle = $("modalTitle");
+    const modalBody = $("modalBody");
+
+    if (!modal) {
+      return;
+    }
+
+    if (modalTitle) {
+      modalTitle.textContent = title;
+    }
+
+    if (modalBody) {
+      modalBody.innerHTML = html;
+    }
+
+    modal.classList.remove("hidden");
+  }
+
+
+  function closeModal() {
+
+    const modal = $("modal");
+
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+  }
+
+
+  // =========================================================
+  // LOGIN
   // =========================================================
 
   async function handleLogin(event) {
+
     event.preventDefault();
 
-    if (state.loading) return;
-
     if (!supabaseClient) {
+
       showLoginMessage(
-        "Supabase غير متصل. تأكد من إعداد supabase-config.js",
+        "Supabase غير متصل. تأكد من supabase-config.js",
         "error"
       );
 
       return;
     }
 
-    const emailOrUsername =
-      $("loginEmail")?.value.trim() || "";
+    const loginInput =
+      $("loginEmail").value.trim();
 
     const password =
-      $("loginPassword")?.value || "";
+      $("loginPassword").value;
 
-    if (!emailOrUsername || !password) {
+    if (!loginInput || !password) {
+
       showLoginMessage(
         "اكتب اسم المستخدم وكلمة المرور",
         "error"
@@ -363,148 +384,258 @@ hideLoadingScreen();
       return;
     }
 
-    setLoading(true);
+    setLoginLoading(true);
 
-    showLoginMessage("", "success");
-
-    // -------------------------------------------------------
-    // أولاً: تجربة Supabase Auth للأدمن
-    // -------------------------------------------------------
+    showLoginMessage(
+      "جارٍ تسجيل الدخول...",
+      "success"
+    );
 
     try {
-      let email = emailOrUsername;
 
-      // إذا كتب المستخدم اسم admin وليس إيميل
-      // نحاول استخدام الإيميل الموجود في Auth
-      if (!email.includes("@")) {
-        email = emailOrUsername;
-      }
+      // =====================================================
+      // إذا كان بريد إلكتروني → نحاول Admin Auth
+      // =====================================================
 
-      if (email.includes("@")) {
-        const { data, error } =
+      if (loginInput.includes("@")) {
+
+        const result =
           await supabaseClient.auth.signInWithPassword({
-            email,
-            password
+            email: loginInput,
+            password: password
           });
 
-        if (!error && data?.session) {
-          state.session = data.session;
+        if (!result.error && result.data?.session) {
+
           state.role = "admin";
 
+          state.session =
+            result.data.session;
+
+          console.log(
+            "Admin login successful"
+          );
+
+          setLoginLoading(false);
+
           showAdmin();
-
-          await loadOffices();
-
-          setLoading(false);
 
           return;
         }
 
         console.warn(
-          "Auth login failed:",
-          error?.message
+          "Admin Auth failed:",
+          result.error
         );
       }
-    } catch (error) {
-      console.warn("Auth login error:", error);
-    }
 
-    // -------------------------------------------------------
-    // ثانياً: تسجيل دخول المكتب
-    // -------------------------------------------------------
 
-    try {
-      const { data, error } =
+      // =====================================================
+      // دخول المكتب
+      // =====================================================
+
+      const officeResult =
         await supabaseClient
           .from("offices")
           .select("*")
-          .eq("username", emailOrUsername)
+          .eq("username", loginInput)
           .eq("password", password)
-          .eq("active", true)
           .maybeSingle();
 
-      if (error) {
-        console.error("Office login:", error);
+
+      if (officeResult.error) {
+
+        console.error(
+          "Office login:",
+          officeResult.error
+        );
 
         showLoginMessage(
-          "تعذر تسجيل دخول المكتب: " +
-            (error.message || "خطأ غير معروف"),
+          "تعذر تسجيل الدخول. تحقق من اتصال Supabase وسياسات RLS.",
           "error"
         );
 
-        setLoading(false);
+        setLoginLoading(false);
 
         return;
       }
 
-      if (data) {
-        state.role = "office";
-        state.currentOffice = data;
 
-        showApp();
+      const office =
+        officeResult.data;
 
-        await loadOfficeData();
 
-        setLoading(false);
+      if (!office) {
+
+        showLoginMessage(
+          "اسم المستخدم أو كلمة المرور غير صحيحة.",
+          "error"
+        );
+
+        setLoginLoading(false);
 
         return;
       }
 
-      showLoginMessage(
-        "بيانات الدخول غير صحيحة",
-        "error"
+
+      // =====================================================
+      // التحقق من تفعيل المكتب
+      // =====================================================
+
+      if (office.active !== true) {
+
+        showLoginMessage(
+          "هذا المكتب معطل من قبل الأدمن.",
+          "error"
+        );
+
+        setLoginLoading(false);
+
+        return;
+      }
+
+
+      // =====================================================
+      // التحقق من العقد
+      // =====================================================
+
+      if (office.contract_active !== true) {
+
+        showLoginMessage(
+          "العقد معطل من قبل الأدمن.",
+          "error"
+        );
+
+        setLoginLoading(false);
+
+        return;
+      }
+
+
+      if (isContractExpired(office)) {
+
+        showLoginMessage(
+          "مدة عقد هذا المكتب انتهت.",
+          "error"
+        );
+
+        setLoginLoading(false);
+
+        return;
+      }
+
+
+      // =====================================================
+      // تسجيل المكتب
+      // =====================================================
+
+      state.role = "office";
+
+      state.currentOffice =
+        office;
+
+      state.currentOfficeId =
+        office.id;
+
+      state.people = [];
+
+      state.transactions = [];
+
+      console.log(
+        "Office login successful:",
+        office.name
       );
 
-      setLoading(false);
+      setLoginLoading(false);
+
+      showApp();
+
     } catch (error) {
-      console.error("Office login exception:", error);
+
+      console.error(
+        "Login error:",
+        error
+      );
 
       showLoginMessage(
-        "حدث خطأ أثناء تسجيل الدخول",
+        "حدث خطأ أثناء تسجيل الدخول.",
         "error"
       );
 
-      setLoading(false);
+      setLoginLoading(false);
     }
   }
 
+
   // =========================================================
-  // Logout
+  // ADMIN LOGOUT
   // =========================================================
 
-  async function logout() {
-    try {
-      if (state.role === "admin" && supabaseClient) {
+  async function adminLogout() {
+
+    if (supabaseClient) {
+
+      try {
         await supabaseClient.auth.signOut();
+      } catch (error) {
+        console.warn(
+          "Logout error:",
+          error
+        );
       }
-    } catch (error) {
-      console.error("Logout:", error);
     }
+
+    resetState();
+
+    showLogin();
+  }
+
+
+  async function logout() {
+
+    if (state.role === "admin") {
+      await adminLogout();
+      return;
+    }
+
+    resetState();
+
+    showLogin();
+  }
+
+
+  function resetState() {
 
     state.role = null;
     state.session = null;
-    state.currentOffice = null;
-    state.currentPerson = null;
+
     state.offices = [];
+
+    state.currentOffice = null;
+    state.currentOfficeId = null;
+
     state.people = [];
     state.transactions = [];
 
-    showLogin();
+    state.currentPersonId = null;
 
-    if ($("loginPassword")) {
-      $("loginPassword").value = "";
-    }
+    state.searchQuery = "";
   }
 
+
   // =========================================================
-  // المكاتب
+  // ADMIN - OFFICES
   // =========================================================
 
   async function loadOffices() {
-    if (!supabaseClient) return;
+
+    if (!supabaseClient) {
+      return;
+    }
 
     try {
-      const { data, error } =
+
+      const result =
         await supabaseClient
           .from("offices")
           .select("*")
@@ -512,897 +643,1682 @@ hideLoadingScreen();
             ascending: false
           });
 
-      if (error) {
-        console.error("Load offices:", error);
+
+      if (result.error) {
+
+        console.error(
+          "Load offices:",
+          result.error
+        );
 
         notify(
-          "تعذر تحميل المكاتب: " +
-            error.message,
+          "تعذر تحميل المكاتب من Supabase.",
           "error"
         );
 
         return;
       }
 
-      state.offices = data || [];
+
+      state.offices =
+        result.data || [];
+
 
       renderOffices();
+
     } catch (error) {
-      console.error(error);
+
+      console.error(
+        "Load offices exception:",
+        error
+      );
     }
   }
 
-  function renderOffices() {
-    const list = $("officesList");
-    const empty = $("officesEmpty");
 
-    if (!list) return;
+  function renderOffices() {
+
+    const list =
+      $("officesList");
+
+    const empty =
+      $("officesEmpty");
+
+    const count =
+      $("officesCount");
+
+    if (!list) {
+      return;
+    }
+
 
     const query =
-      $("officeSearch")?.value
+      (state.officeSearch || "")
         .trim()
-        .toLowerCase() || "";
+        .toLowerCase();
 
-    const offices = state.offices.filter((office) => {
-      return (
-        !query ||
-        String(office.name || "")
-          .toLowerCase()
-          .includes(query) ||
-        String(office.username || "")
-          .toLowerCase()
-          .includes(query) ||
-        String(office.phone || "")
-          .toLowerCase()
-          .includes(query)
-      );
-    });
 
-    setText(
-      "officesCount",
-      state.offices.length
-    );
+    let offices =
+      state.offices.filter(function (office) {
+
+        if (!query) {
+          return true;
+        }
+
+        return (
+          String(office.name || "")
+            .toLowerCase()
+            .includes(query)
+          ||
+          String(office.username || "")
+            .toLowerCase()
+            .includes(query)
+        );
+
+      });
+
+
+    if (count) {
+      count.textContent =
+        state.offices.length;
+    }
+
 
     if (!offices.length) {
+
       list.innerHTML = "";
 
-      if (empty) show(empty);
+      if (empty) {
+        empty.classList.remove("hidden");
+      }
 
       return;
     }
 
-    if (empty) hide(empty);
 
-    list.innerHTML = offices
-      .map((office) => {
-        const active =
-          office.active !== false;
+    if (empty) {
+      empty.classList.add("hidden");
+    }
 
-        return `
-          <div class="person-item office-item">
 
-            <div class="person-main">
+    list.innerHTML =
+      offices.map(renderOfficeCard).join("");
+  }
 
-              <div class="person-avatar">
-                🏢
-              </div>
 
-              <div class="person-info">
+  function renderOfficeCard(office) {
 
-                <h3>
-                  ${escapeHTML(
-                    office.name
-                  )}
-                </h3>
+    const expired =
+      isContractExpired(office);
 
-                <p>
-                  المستخدم:
-                  ${escapeHTML(
-                    office.username
-                  )}
-                </p>
+    let statusText = "فعال";
+    let statusClass = "active";
 
-                <p>
-                  الهاتف:
-                  ${escapeHTML(
-                    office.phone || "-"
-                  )}
-                </p>
 
-                ${
-                  office.contract_start ||
-                  office.contract_end
-                    ? `
-                      <p>
-                        مدة العقد:
-                        ${formatDate(
-                          office.contract_start
-                        )}
-                        -
-                        ${formatDate(
-                          office.contract_end
-                        )}
-                      </p>
-                    `
-                    : ""
-                }
+    if (office.active !== true) {
 
-              </div>
+      statusText =
+        "المكتب معطل";
+
+      statusClass =
+        "disabled";
+
+    } else if (
+      office.contract_active !== true
+    ) {
+
+      statusText =
+        "العقد معطل";
+
+      statusClass =
+        "disabled";
+
+    } else if (expired) {
+
+      statusText =
+        "العقد منتهي";
+
+      statusClass =
+        "expired";
+    }
+
+
+    return `
+      <div class="person-item office-card">
+
+        <div class="person-main">
+
+          <div class="person-avatar">
+            🏢
+          </div>
+
+          <div class="person-info">
+
+            <h3>
+              ${escapeHtml(office.name)}
+            </h3>
+
+            <p>
+              اسم المستخدم:
+              ${escapeHtml(office.username)}
+            </p>
+
+            ${
+              office.phone
+                ? `<p>${escapeHtml(office.phone)}</p>`
+                : ""
+            }
+
+            <div class="office-contract">
+
+              ${
+                office.contract_start
+                  ? `من ${formatDate(office.contract_start)}`
+                  : "بدون بداية"
+              }
+
+              →
+
+              ${
+                office.contract_end
+                  ? formatDate(office.contract_end)
+                  : "بدون نهاية"
+              }
 
             </div>
 
-            <div class="person-actions">
+            <div style="margin-top:8px">
 
-              <span class="status-badge ${
-                active
-                  ? "status-active"
-                  : "status-inactive"
-              }">
-                ${active ? "فعال" : "متوقف"}
+              <span class="contract-status ${statusClass}">
+                ${statusText}
               </span>
-
-              <button
-                class="btn btn-edit"
-                data-edit-office="${office.id}">
-                تعديل
-              </button>
-
-              <button
-                class="btn btn-danger"
-                data-delete-office="${office.id}">
-                حذف
-              </button>
 
             </div>
 
           </div>
-        `;
-      })
-      .join("");
+
+        </div>
+
+
+        <div class="admin-contract-controls">
+
+          <button
+            class="btn btn-edit"
+            onclick="window.editOffice('${office.id}')">
+
+            تعديل
+
+          </button>
+
+
+          ${
+            office.contract_active === true
+              ? `
+                <button
+                  class="btn btn-contract-off"
+                  onclick="window.toggleOfficeContract('${office.id}', false)">
+
+                  تعطيل العقد
+
+                </button>
+              `
+              : `
+                <button
+                  class="btn btn-contract-on"
+                  onclick="window.toggleOfficeContract('${office.id}', true)">
+
+                  تفعيل العقد
+
+                </button>
+              `
+          }
+
+
+          ${
+            office.active === true
+              ? `
+                <button
+                  class="btn btn-contract-off"
+                  onclick="window.toggleOfficeActive('${office.id}', false)">
+
+                  تعطيل المكتب
+
+                </button>
+              `
+              : `
+                <button
+                  class="btn btn-contract-on"
+                  onclick="window.toggleOfficeActive('${office.id}', true)">
+
+                  تفعيل المكتب
+
+                </button>
+              `
+          }
+
+
+          <button
+            class="btn btn-danger"
+            onclick="window.deleteOffice('${office.id}')">
+
+            حذف
+
+          </button>
+
+        </div>
+
+      </div>
+    `;
   }
 
+
   // =========================================================
-  // إضافة / تعديل مكتب
+  // ADD OFFICE
   // =========================================================
 
-  function openOfficeModal(office = null) {
-    const title = office
-      ? "تعديل المكتب"
-      : "إضافة مكتب";
+  function showAddOfficeModal() {
 
-    const body = `
-      <form id="officeForm">
+    openModal(
+      "إضافة مكتب",
+      `
+        <form id="officeForm">
 
-        <div class="form-group">
-          <label>اسم المكتب</label>
-          <input
-            id="officeName"
-            required
-            value="${escapeHTML(
-              office?.name || ""
-            )}">
-        </div>
+          <div class="form-group">
 
-        <div class="form-group">
-          <label>اسم المستخدم</label>
-          <input
-            id="officeUsername"
-            required
-            value="${escapeHTML(
-              office?.username || ""
-            )}">
-        </div>
+            <label>
+              اسم المكتب
+            </label>
 
-        <div class="form-group">
-          <label>
-            كلمة المرور
-            ${
-              office
-                ? "(اتركها فارغة للإبقاء على القديمة)"
-                : ""
-            }
-          </label>
-
-          <input
-            type="password"
-            id="officePassword"
-            ${
-              office
-                ? ""
-                : "required"
-            }>
-        </div>
-
-        <div class="form-group">
-          <label>رقم الهاتف</label>
-          <input
-            id="officePhone"
-            value="${escapeHTML(
-              office?.phone || ""
-            )}">
-        </div>
-
-        <div class="form-group">
-          <label>التفاصيل</label>
-          <textarea
-            id="officeDetails">${escapeHTML(
-              office?.details || ""
-            )}</textarea>
-        </div>
-
-        <div class="form-group">
-          <label>بداية العقد</label>
-          <input
-            type="date"
-            id="contractStart"
-            value="${
-              office?.contract_start || ""
-            }">
-        </div>
-
-        <div class="form-group">
-          <label>نهاية العقد</label>
-          <input
-            type="date"
-            id="contractEnd"
-            value="${
-              office?.contract_end || ""
-            }">
-        </div>
-
-        <div class="form-group">
-          <label>
             <input
-              type="checkbox"
-              id="officeActive"
-              ${
-                office?.active !== false
-                  ? "checked"
-                  : ""
-              }>
-            المكتب فعال
-          </label>
-        </div>
+              id="officeName"
+              required
+              placeholder="مثال: مكتب أحمد"
+            >
 
-        <button
-          type="submit"
-          class="btn btn-primary">
-          حفظ المكتب
-        </button>
+          </div>
 
-      </form>
-    `;
 
-    openModal(title, body);
+          <div class="form-group">
 
-    $("officeForm")?.addEventListener(
+            <label>
+              اسم المستخدم
+            </label>
+
+            <input
+              id="officeUsername"
+              required
+              autocomplete="off"
+              placeholder="اسم دخول المكتب"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              كلمة المرور
+            </label>
+
+            <input
+              id="officePassword"
+              type="password"
+              required
+              autocomplete="new-password"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              رقم الهاتف
+            </label>
+
+            <input
+              id="officePhone"
+              type="tel"
+            >
+
+          </div>
+
+
+          <div class="form-row">
+
+            <div class="form-group">
+
+              <label>
+                بداية العقد
+              </label>
+
+              <input
+                id="contractStart"
+                type="date"
+              >
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label>
+                نهاية العقد
+              </label>
+
+              <input
+                id="contractEnd"
+                type="date"
+              >
+
+            </div>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              تفاصيل
+            </label>
+
+            <textarea
+              id="officeDetails">
+            </textarea>
+
+          </div>
+
+
+          <button
+            class="btn btn-primary"
+            type="submit"
+            style="width:100%">
+
+            حفظ المكتب
+
+          </button>
+
+        </form>
+      `
+    );
+
+
+    const form =
+      $("officeForm");
+
+    if (form) {
+
+      form.addEventListener(
+        "submit",
+        saveOffice
+      );
+
+    }
+  }
+
+
+  async function saveOffice(event) {
+
+    event.preventDefault();
+
+
+    const name =
+      $("officeName").value.trim();
+
+    const username =
+      $("officeUsername").value.trim();
+
+    const password =
+      $("officePassword").value;
+
+    const phone =
+      $("officePhone").value.trim();
+
+    const details =
+      $("officeDetails").value.trim();
+
+    const contractStart =
+      $("contractStart").value || null;
+
+    const contractEnd =
+      $("contractEnd").value || null;
+
+
+    if (!name || !username || !password) {
+
+      alert(
+        "اسم المكتب واسم المستخدم وكلمة المرور مطلوبة."
+      );
+
+      return;
+    }
+
+
+    if (
+      contractStart &&
+      contractEnd &&
+      contractEnd < contractStart
+    ) {
+
+      alert(
+        "نهاية العقد يجب أن تكون بعد بداية العقد."
+      );
+
+      return;
+    }
+
+
+    try {
+
+      const result =
+        await supabaseClient
+          .from("offices")
+          .insert({
+            name: name,
+            username: username,
+            password: password,
+            phone: phone,
+            details: details,
+            active: true,
+            contract_start: contractStart,
+            contract_end: contractEnd,
+            contract_active: true
+          })
+          .select()
+          .single();
+
+
+      if (result.error) {
+
+        console.error(
+          "Create office:",
+          result.error
+        );
+
+        if (
+          result.error.code === "23505"
+        ) {
+
+          alert(
+            "اسم المستخدم مستخدم مسبقًا."
+          );
+
+        } else {
+
+          alert(
+            result.error.message ||
+            "تعذر إنشاء المكتب."
+          );
+        }
+
+        return;
+      }
+
+
+      closeModal();
+
+      await loadOffices();
+
+      alert(
+        "تم إنشاء المكتب وحفظه في Supabase."
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Save office exception:",
+        error
+      );
+
+      alert(
+        "حدث خطأ أثناء حفظ المكتب."
+      );
+    }
+  }
+
+
+  // =========================================================
+  // EDIT OFFICE
+  // =========================================================
+
+  async function editOffice(id) {
+
+    const office =
+      state.offices.find(
+        o => o.id === id
+      );
+
+    if (!office) {
+      return;
+    }
+
+
+    openModal(
+      "تعديل المكتب",
+      `
+        <form id="editOfficeForm">
+
+          <div class="form-group">
+
+            <label>
+              اسم المكتب
+            </label>
+
+            <input
+              id="editOfficeName"
+              value="${escapeHtml(office.name)}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              اسم المستخدم
+            </label>
+
+            <input
+              id="editOfficeUsername"
+              value="${escapeHtml(office.username)}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              كلمة المرور
+            </label>
+
+            <input
+              id="editOfficePassword"
+              type="password"
+              placeholder="اتركها فارغة إذا لا تريد تغييرها"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الهاتف
+            </label>
+
+            <input
+              id="editOfficePhone"
+              value="${escapeHtml(office.phone || "")}"
+            >
+
+          </div>
+
+
+          <div class="form-row">
+
+            <div class="form-group">
+
+              <label>
+                بداية العقد
+              </label>
+
+              <input
+                id="editContractStart"
+                type="date"
+                value="${office.contract_start || ""}"
+              >
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label>
+                نهاية العقد
+              </label>
+
+              <input
+                id="editContractEnd"
+                type="date"
+                value="${office.contract_end || ""}"
+              >
+
+            </div>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              التفاصيل
+            </label>
+
+            <textarea
+              id="editOfficeDetails">${escapeHtml(
+                office.details || ""
+              )}</textarea>
+
+          </div>
+
+
+          <button
+            class="btn btn-primary"
+            type="submit"
+            style="width:100%">
+
+            حفظ التعديلات
+
+          </button>
+
+        </form>
+      `
+    );
+
+
+    $("editOfficeForm").addEventListener(
       "submit",
-      async (event) => {
+      async function (event) {
+
         event.preventDefault();
 
-        await saveOffice(
-          office?.id || null
+
+        const updateData = {
+
+          name:
+            $("editOfficeName")
+              .value.trim(),
+
+          username:
+            $("editOfficeUsername")
+              .value.trim(),
+
+          phone:
+            $("editOfficePhone")
+              .value.trim(),
+
+          details:
+            $("editOfficeDetails")
+              .value.trim(),
+
+          contract_start:
+            $("editContractStart")
+              .value || null,
+
+          contract_end:
+            $("editContractEnd")
+              .value || null
+
+        };
+
+
+        const newPassword =
+          $("editOfficePassword")
+            .value;
+
+
+        if (
+          updateData.contract_start &&
+          updateData.contract_end &&
+          updateData.contract_end <
+          updateData.contract_start
+        ) {
+
+          alert(
+            "نهاية العقد يجب أن تكون بعد البداية."
+          );
+
+          return;
+        }
+
+
+        if (newPassword) {
+
+          updateData.password =
+            newPassword;
+        }
+
+
+        const result =
+          await supabaseClient
+            .from("offices")
+            .update(updateData)
+            .eq("id", id);
+
+
+        if (result.error) {
+
+          console.error(
+            "Update office:",
+            result.error
+          );
+
+          alert(
+            result.error.message ||
+            "تعذر تعديل المكتب."
+          );
+
+          return;
+        }
+
+
+        closeModal();
+
+        await loadOffices();
+
+        alert(
+          "تم حفظ تعديلات المكتب."
         );
       }
     );
   }
 
-  async function saveOffice(officeId) {
-    const name =
-      $("officeName")?.value.trim() || "";
-
-    const username =
-      $("officeUsername")?.value.trim() || "";
-
-    const password =
-      $("officePassword")?.value || "";
-
-    const phone =
-      $("officePhone")?.value.trim() || "";
-
-    const details =
-      $("officeDetails")?.value.trim() || "";
-
-    const contract_start =
-      $("contractStart")?.value || null;
-
-    const contract_end =
-      $("contractEnd")?.value || null;
-
-    const active =
-      $("officeActive")?.checked ?? true;
-
-    if (!name || !username) {
-      notify(
-        "اسم المكتب واسم المستخدم مطلوبان",
-        "error"
-      );
-
-      return;
-    }
-
-    try {
-      if (officeId) {
-        const oldOffice =
-          state.offices.find(
-            (x) => x.id === officeId
-          );
-
-        const updateData = {
-          name,
-          username,
-          phone,
-          details,
-          contract_start,
-          contract_end,
-          active
-        };
-
-        if (password) {
-          updateData.password = password;
-        }
-
-        const { error } =
-          await supabaseClient
-            .from("offices")
-            .update(updateData)
-            .eq("id", officeId);
-
-        if (error) {
-          console.error(
-            "Save office:",
-            error
-          );
-
-          notify(
-            "فشل تعديل المكتب: " +
-              error.message,
-            "error"
-          );
-
-          return;
-        }
-      } else {
-        if (!password) {
-          notify(
-            "كلمة المرور مطلوبة",
-            "error"
-          );
-
-          return;
-        }
-
-        const { error } =
-          await supabaseClient
-            .from("offices")
-            .insert({
-              name,
-              username,
-              password,
-              phone,
-              details,
-              active,
-              contract_start,
-              contract_end
-            });
-
-        if (error) {
-          console.error(
-            "Create office:",
-            error
-          );
-
-          notify(
-            "فشل إنشاء المكتب: " +
-              error.message,
-            "error"
-          );
-
-          return;
-        }
-      }
-
-      closeModal();
-
-      notify("تم حفظ المكتب بنجاح");
-
-      await loadOffices();
-    } catch (error) {
-      console.error(error);
-
-      notify(
-        "حدث خطأ أثناء حفظ المكتب",
-        "error"
-      );
-    }
-  }
-
-  async function deleteOffice(id) {
-    const office =
-      state.offices.find(
-        (x) => x.id === id
-      );
-
-    if (!office) return;
-
-    if (
-      !confirm(
-        `هل أنت متأكد من حذف مكتب "${office.name}"؟\nسيتم حذف الأشخاص والحركات المرتبطة به.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const { error } =
-        await supabaseClient
-          .from("offices")
-          .delete()
-          .eq("id", id);
-
-      if (error) {
-        notify(
-          "فشل حذف المكتب: " +
-            error.message,
-          "error"
-        );
-
-        return;
-      }
-
-      notify("تم حذف المكتب");
-
-      await loadOffices();
-    } catch (error) {
-      console.error(error);
-    }
-  }
 
   // =========================================================
-  // بيانات المكتب
+  // TOGGLE OFFICE ACTIVE
+  // =========================================================
+
+  async function toggleOfficeActive(
+    id,
+    active
+  ) {
+
+    const result =
+      await supabaseClient
+        .from("offices")
+        .update({
+          active: active
+        })
+        .eq("id", id);
+
+
+    if (result.error) {
+
+      console.error(
+        "Toggle office:",
+        result.error
+      );
+
+      alert(
+        result.error.message
+      );
+
+      return;
+    }
+
+
+    await loadOffices();
+  }
+
+
+  // =========================================================
+  // TOGGLE CONTRACT
+  // =========================================================
+
+  async function toggleOfficeContract(
+    id,
+    active
+  ) {
+
+    const result =
+      await supabaseClient
+        .from("offices")
+        .update({
+          contract_active: active
+        })
+        .eq("id", id);
+
+
+    if (result.error) {
+
+      console.error(
+        "Toggle contract:",
+        result.error
+      );
+
+      alert(
+        result.error.message
+      );
+
+      return;
+    }
+
+
+    await loadOffices();
+  }
+
+
+  // =========================================================
+  // DELETE OFFICE
+  // =========================================================
+
+  async function deleteOffice(id) {
+
+    const office =
+      state.offices.find(
+        o => o.id === id
+      );
+
+
+    if (!office) {
+      return;
+    }
+
+
+    const ok =
+      confirm(
+        `هل تريد حذف مكتب "${office.name}"؟\n\nسيتم حذف الأشخاص والحركات التابعة له أيضًا.`
+      );
+
+
+    if (!ok) {
+      return;
+    }
+
+
+    const result =
+      await supabaseClient
+        .from("offices")
+        .delete()
+        .eq("id", id);
+
+
+    if (result.error) {
+
+      console.error(
+        "Delete office:",
+        result.error
+      );
+
+      alert(
+        result.error.message ||
+        "تعذر حذف المكتب."
+      );
+
+      return;
+    }
+
+
+    await loadOffices();
+
+    alert(
+      "تم حذف المكتب."
+    );
+  }
+
+
+  // =========================================================
+  // OFFICE DATA
   // =========================================================
 
   async function loadOfficeData() {
-    if (!state.currentOffice) return;
 
-    const officeId =
-      state.currentOffice.id;
+    if (!state.currentOfficeId) {
+      return;
+    }
+
+
+    updateOfficeHeader();
+
+    updateContractBanner();
+
 
     try {
-      const [
-        peopleResult,
-        transactionsResult
-      ] = await Promise.all([
-        supabaseClient
+
+      const peopleResult =
+        await supabaseClient
           .from("people")
           .select("*")
-          .eq("office_id", officeId)
+          .eq(
+            "office_id",
+            state.currentOfficeId
+          )
           .order("created_at", {
             ascending: false
-          }),
+          });
 
-        supabaseClient
-          .from("transactions")
-          .select("*")
-          .eq("office_id", officeId)
-          .order("date", {
-            ascending: false
-          })
-      ]);
 
       if (peopleResult.error) {
+
         console.error(
           "Load people:",
           peopleResult.error
         );
 
-        notify(
-          "فشل تحميل الأشخاص: " +
-            peopleResult.error.message,
-          "error"
+        alert(
+          "تعذر تحميل الأشخاص."
         );
 
         return;
       }
 
-      if (transactionsResult.error) {
-        console.error(
-          "Load transactions:",
-          transactionsResult.error
-        );
-
-        notify(
-          "فشل تحميل الحركات: " +
-            transactionsResult.error.message,
-          "error"
-        );
-
-        return;
-      }
 
       state.people =
         peopleResult.data || [];
 
-      state.transactions =
-        transactionsResult.data || [];
 
-      updateOfficeHeader();
+      const txnResult =
+        await supabaseClient
+          .from("transactions")
+          .select("*")
+          .eq(
+            "office_id",
+            state.currentOfficeId
+          )
+          .order("date", {
+            ascending: false
+          });
+
+
+      if (txnResult.error) {
+
+        console.error(
+          "Load transactions:",
+          txnResult.error
+        );
+
+        alert(
+          "تعذر تحميل الحركات."
+        );
+
+        return;
+      }
+
+
+      state.transactions =
+        txnResult.data || [];
+
 
       renderPeople();
-    } catch (error) {
-      console.error(
-        "loadOfficeData:",
-        error
-      );
 
-      notify(
-        "حدث خطأ أثناء تحميل بيانات المكتب",
-        "error"
+      updateStats();
+
+    } catch (error) {
+
+      console.error(
+        "Load office data:",
+        error
       );
     }
   }
 
+
+  // =========================================================
+  // OFFICE HEADER
+  // =========================================================
+
   function updateOfficeHeader() {
-    const office =
-      state.currentOffice;
 
-    if (!office) return;
+    if (!state.currentOffice) {
+      return;
+    }
 
-    setText(
-      "appTitle",
-      office.name || "دفتر الديون"
-    );
 
-    setText(
-      "appSubtitle",
-      office.details ||
-        "إدارة الديون بسهولة"
-    );
+    const title =
+      $("appTitle");
 
-    setText(
-      "peopleCount",
-      state.people.length
-    );
+    const subtitle =
+      $("appSubtitle");
 
-    const total = calculateOfficeDebt();
 
-    setText(
-      "totalDebt",
-      money(total)
-    );
+    if (title) {
+
+      title.textContent =
+        state.currentOffice.name;
+    }
+
+
+    if (subtitle) {
+
+      subtitle.textContent =
+        "إدارة الديون بسهولة";
+    }
+
+
+    const back =
+      $("backToAdminBtn");
+
+
+    if (back) {
+
+      if (state.role === "admin") {
+        back.classList.remove("hidden");
+      } else {
+        back.classList.add("hidden");
+      }
+    }
+  }
+
+
+  // =========================================================
+  // CONTRACT BANNER
+  // =========================================================
+
+  function updateContractBanner() {
 
     const banner =
       $("contractBanner");
 
-    if (!banner) return;
 
-    if (
-      office.contract_start ||
-      office.contract_end
-    ) {
+    if (!banner || !state.currentOffice) {
+      return;
+    }
+
+
+    const office =
+      state.currentOffice;
+
+
+    banner.className =
+      "contract-banner";
+
+
+    if (office.contract_active !== true) {
+
+      banner.classList.add(
+        "disabled"
+      );
+
       banner.innerHTML = `
-        <strong>مدة العقد:</strong>
-        ${formatDate(
-          office.contract_start
-        )}
-        إلى
-        ${formatDate(
-          office.contract_end
-        )}
+        <strong>
+          🔴 العقد معطل
+        </strong>
+        <br>
+        تم تعطيل عقد هذا المكتب من قبل الأدمن.
       `;
 
-      show(banner);
-    } else {
-      hide(banner);
-    }
-  }
-
-  function calculateOfficeDebt() {
-    let total = 0;
-
-    state.transactions.forEach(
-      (txn) => {
-        const amount =
-          Number(txn.amount) || 0;
-
-        if (txn.type === "purchase") {
-          total += amount;
-        } else if (
-          txn.type === "payment"
-        ) {
-          total -= amount;
-        }
-      }
-    );
-
-    return total;
-  }
-
-  // =========================================================
-  // الأشخاص
-  // =========================================================
-
-  function renderPeople() {
-    const list = $("peopleList");
-    const empty = $("emptyState");
-
-    if (!list) return;
-
-    const query =
-      $("searchInput")?.value
-        .trim()
-        .toLowerCase() || "";
-
-    const people =
-      state.people.filter((person) => {
-        return (
-          !query ||
-          String(person.name || "")
-            .toLowerCase()
-            .includes(query) ||
-          String(person.phone || "")
-            .toLowerCase()
-            .includes(query)
-        );
-      });
-
-    setText(
-      "peopleCount",
-      state.people.length
-    );
-
-    if (!people.length) {
-      list.innerHTML = "";
-
-      if (empty) show(empty);
+      banner.classList.remove(
+        "hidden"
+      );
 
       return;
     }
 
-    if (empty) hide(empty);
 
-    list.innerHTML = people
-      .map((person) => {
-        const debt =
-          calculatePersonDebt(
-            person.id
-          );
+    if (isContractExpired(office)) {
 
-        const debtClass =
-          debt > 0
-            ? "debt-positive"
-            : debt < 0
-            ? "debt-negative"
-            : "debt-zero";
+      banner.classList.add(
+        "expired"
+      );
 
-        return `
-          <div
-            class="person-item"
-            data-person="${person.id}">
+      banner.innerHTML = `
+        <strong>
+          ⚠️ العقد منتهي
+        </strong>
+        <br>
+        انتهت مدة العقد بتاريخ
+        ${formatDate(office.contract_end)}
+      `;
 
-            <div class="person-main">
+      banner.classList.remove(
+        "hidden"
+      );
 
-              <div class="person-avatar">
-                👤
-              </div>
+      return;
+    }
 
-              <div class="person-info">
 
-                <h3>
-                  ${escapeHTML(
-                    person.name
-                  )}
-                </h3>
+    banner.innerHTML = `
+      <strong>
+        🟢 العقد فعال
+      </strong>
 
-                <p>
-                  ${escapeHTML(
-                    person.phone || "بدون هاتف"
-                  )}
-                </p>
+      <br>
 
-              </div>
+      مدة العقد:
 
-            </div>
+      ${
+        office.contract_start
+          ? formatDate(office.contract_start)
+          : "غير محدد"
+      }
 
-            <div class="person-balance">
+      →
 
-              <span class="${debtClass}">
-                ${money(Math.abs(debt))}
-              </span>
+      ${
+        office.contract_end
+          ? formatDate(office.contract_end)
+          : "غير محدد"
+      }
+    `;
 
-              <small>
-                ${
-                  debt > 0
-                    ? "عليه"
-                    : debt < 0
-                    ? "له"
-                    : "متسدد"
-                }
-              </small>
 
-            </div>
-
-          </div>
-        `;
-      })
-      .join("");
+    banner.classList.remove(
+      "hidden"
+    );
   }
 
-  function calculatePersonDebt(personId) {
-    let total = 0;
+
+  // =========================================================
+  // PEOPLE
+  // =========================================================
+
+  function getPersonDebt(personId) {
+
+    let balance = 0;
+
 
     state.transactions
       .filter(
-        (txn) =>
-          txn.person_id === personId
+        t =>
+          t.person_id === personId
       )
-      .forEach((txn) => {
-        const amount =
-          Number(txn.amount) || 0;
+      .forEach(function (txn) {
 
-        if (txn.type === "purchase") {
-          total += amount;
+        if (
+          txn.type === "purchase"
+        ) {
+
+          balance +=
+            Number(txn.amount);
+
         } else if (
           txn.type === "payment"
         ) {
-          total -= amount;
+
+          balance -=
+            Number(txn.amount);
         }
+
       });
 
-    return total;
+
+    return balance;
   }
 
-  // =========================================================
-  // فتح الشخص
-  // =========================================================
 
-  async function openPerson(personId) {
-    const person =
-      state.people.find(
-        (x) => x.id === personId
+  function renderPeople() {
+
+    const list =
+      $("peopleList");
+
+    const empty =
+      $("emptyState");
+
+
+    if (!list) {
+      return;
+    }
+
+
+    const query =
+      state.searchQuery
+        .trim()
+        .toLowerCase();
+
+
+    const people =
+      state.people.filter(
+        function (person) {
+
+          if (!query) {
+            return true;
+          }
+
+          return (
+            String(person.name || "")
+              .toLowerCase()
+              .includes(query)
+            ||
+            String(person.phone || "")
+              .toLowerCase()
+              .includes(query)
+          );
+
+        }
       );
 
-    if (!person) return;
 
-    state.currentPerson = person;
+    if (!people.length) {
 
-    show($("personView"));
-    hide($("peopleView"));
+      list.innerHTML = "";
 
-    renderPerson();
+      if (empty) {
+        empty.classList.remove(
+          "hidden"
+        );
+      }
+
+      return;
+    }
+
+
+    if (empty) {
+      empty.classList.add(
+        "hidden"
+      );
+    }
+
+
+    list.innerHTML =
+      people.map(
+        function (person) {
+
+          const debt =
+            getPersonDebt(
+              person.id
+            );
+
+
+          return `
+            <div
+              class="person-item"
+              onclick="window.openPerson('${person.id}')">
+
+              <div class="person-main">
+
+                <div class="person-avatar">
+                  👤
+                </div>
+
+                <div class="person-info">
+
+                  <h3>
+                    ${escapeHtml(
+                      person.name
+                    )}
+                  </h3>
+
+                  ${
+                    person.phone
+                      ? `
+                        <p>
+                          ${escapeHtml(
+                            person.phone
+                          )}
+                        </p>
+                      `
+                      : ""
+                  }
+
+                </div>
+
+              </div>
+
+
+              <div class="person-balance">
+
+                <strong>
+                  ${formatMoney(debt)}
+                </strong>
+
+                <small>
+                  المستحق
+                </small>
+
+              </div>
+
+            </div>
+          `;
+        }
+      ).join("");
   }
 
-  function renderPerson() {
+
+  // =========================================================
+  // STATS
+  // =========================================================
+
+  function updateStats() {
+
+    const peopleCount =
+      $("peopleCount");
+
+    const totalDebt =
+      $("totalDebt");
+
+
+    if (peopleCount) {
+
+      peopleCount.textContent =
+        state.people.length;
+    }
+
+
+    let total = 0;
+
+
+    state.people.forEach(
+      function (person) {
+
+        const debt =
+          getPersonDebt(
+            person.id
+          );
+
+        total += debt;
+
+      }
+    );
+
+
+    if (totalDebt) {
+
+      totalDebt.textContent =
+        formatMoney(total);
+    }
+  }
+
+
+  // =========================================================
+  // ADD PERSON
+  // =========================================================
+
+  function showAddPersonModal() {
+
+    openModal(
+      "إضافة شخص",
+      `
+        <form id="personForm">
+
+          <div class="form-group">
+
+            <label>
+              الاسم
+            </label>
+
+            <input
+              id="personName"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              رقم الهاتف
+            </label>
+
+            <input
+              id="personPhone"
+              type="tel"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              التفاصيل
+            </label>
+
+            <textarea
+              id="personDetails">
+            </textarea>
+
+          </div>
+
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+            style="width:100%">
+
+            حفظ الشخص
+
+          </button>
+
+        </form>
+      `
+    );
+
+
+    $("personForm").addEventListener(
+      "submit",
+      savePerson
+    );
+  }
+
+
+  async function savePerson(event) {
+
+    event.preventDefault();
+
+
+    if (!state.currentOfficeId) {
+      return;
+    }
+
+
+    const data = {
+
+      office_id:
+        state.currentOfficeId,
+
+      name:
+        $("personName")
+          .value.trim(),
+
+      phone:
+        $("personPhone")
+          .value.trim(),
+
+      details:
+        $("personDetails")
+          .value.trim()
+
+    };
+
+
+    if (!data.name) {
+
+      alert(
+        "اكتب اسم الشخص."
+      );
+
+      return;
+    }
+
+
+    const result =
+      await supabaseClient
+        .from("people")
+        .insert(data);
+
+
+    if (result.error) {
+
+      console.error(
+        "Create person:",
+        result.error
+      );
+
+      alert(
+        result.error.message
+      );
+
+      return;
+    }
+
+
+    closeModal();
+
+    await loadOfficeData();
+  }
+
+
+  // =========================================================
+  // PERSON PAGE
+  // =========================================================
+
+  function openPerson(id) {
+
     const person =
-      state.currentPerson;
+      state.people.find(
+        p => p.id === id
+      );
 
-    if (!person) return;
 
-    const debt =
-      calculatePersonDebt(person.id);
+    if (!person) {
+      return;
+    }
 
-    const personCard =
+
+    state.currentPersonId =
+      id;
+
+
+    $("peopleView")
+      .classList.add(
+        "hidden"
+      );
+
+    $("personView")
+      .classList.remove(
+        "hidden"
+      );
+
+
+    renderPersonPage();
+  }
+
+
+  function renderPersonPage() {
+
+    const person =
+      state.people.find(
+        p =>
+          p.id ===
+          state.currentPersonId
+      );
+
+
+    if (!person) {
+      return;
+    }
+
+
+    const card =
       $("personCard");
 
-    if (personCard) {
-      personCard.innerHTML = `
-        <div class="person-card-inner">
 
-          <div class="person-avatar large">
-            👤
-          </div>
+    if (card) {
 
-          <div>
-            <h2>
-              ${escapeHTML(
-                person.name
-              )}
-            </h2>
+      const debt =
+        getPersonDebt(
+          person.id
+        );
 
-            <p>
-              الهاتف:
-              ${escapeHTML(
-                person.phone || "-"
-              )}
-            </p>
 
-            <p>
-              التفاصيل:
-              ${escapeHTML(
-                person.details || "-"
-              )}
-            </p>
+      card.innerHTML = `
+        <div>
 
-          </div>
+          <h2>
+            ${escapeHtml(
+              person.name
+            )}
+          </h2>
 
-          <div class="person-card-debt">
+          ${
+            person.phone
+              ? `
+                <p>
+                  📞
+                  ${escapeHtml(
+                    person.phone
+                  )}
+                </p>
+              `
+              : ""
+          }
 
-            <span>
-              الرصيد الحالي
-            </span>
+          ${
+            person.details
+              ? `
+                <p>
+                  ${escapeHtml(
+                    person.details
+                  )}
+                </p>
+              `
+              : ""
+          }
 
-            <strong>
-              ${money(Math.abs(debt))}
-            </strong>
+        </div>
 
-            <small>
-              ${
-                debt > 0
-                  ? "عليه"
-                  : debt < 0
-                  ? "له"
-                  : "لا يوجد دين"
-              }
-            </small>
 
-          </div>
+        <div>
+
+          <strong>
+            ${formatMoney(debt)}
+          </strong>
+
+          <small>
+            إجمالي المستحق
+          </small>
 
         </div>
       `;
     }
 
-    const transactions =
-      state.transactions
-        .filter(
-          (txn) =>
-            txn.person_id === person.id
-        )
-        .sort(
-          (a, b) =>
-            new Date(b.date) -
-            new Date(a.date)
-        );
 
-    setText(
-      "txnCount",
-      transactions.length
-    );
-
-    renderTransactions(
-      transactions
-    );
+    renderTransactions();
   }
 
-  function renderTransactions(
-    transactions
-  ) {
+
+  // =========================================================
+  // TRANSACTIONS
+  // =========================================================
+
+  function renderTransactions() {
+
     const list =
       $("transactionsList");
 
-    if (!list) return;
+    const count =
+      $("txnCount");
+
+
+    const transactions =
+      state.transactions.filter(
+        t =>
+          t.person_id ===
+          state.currentPersonId
+      );
+
+
+    if (count) {
+
+      count.textContent =
+        transactions.length;
+    }
+
+
+    if (!list) {
+      return;
+    }
+
 
     if (!transactions.length) {
+
       list.innerHTML = `
         <div class="empty-state">
-          <p>لا توجد حركات لهذا الشخص.</p>
+          لا توجد حركات لهذا الشخص.
         </div>
       `;
 
       return;
     }
 
+
     list.innerHTML =
-      transactions
-        .map((txn) => {
+      transactions.map(
+        function (txn) {
+
           const purchase =
             txn.type === "purchase";
+
 
           return `
             <div class="transaction-item">
 
-              <div class="transaction-icon ${
-                purchase
-                  ? "transaction-purchase"
-                  : "transaction-payment"
-              }">
-                ${
-                  purchase
-                    ? "🛒"
-                    : "💵"
-                }
-              </div>
-
-              <div class="transaction-info">
+              <div>
 
                 <strong>
                   ${
@@ -1412,611 +2328,390 @@ hideLoadingScreen();
                   }
                 </strong>
 
-                <span>
-                  ${formatDateTime(
+                <small>
+                  ${formatDate(
                     txn.date
                   )}
-                </span>
+                </small>
 
                 ${
                   txn.details
                     ? `
-                      <small>
-                        ${escapeHTML(
+                      <p>
+                        ${escapeHtml(
                           txn.details
                         )}
-                      </small>
+                      </p>
                     `
                     : ""
                 }
 
               </div>
 
-              <div class="transaction-amount ${
-                purchase
-                  ? "amount-purchase"
-                  : "amount-payment"
-              }">
+
+              <div
+                style="
+                  color:
+                    ${
+                      purchase
+                        ? "#dc2626"
+                        : "#16a34a"
+                    };
+                  font-weight:800;
+                ">
+
                 ${
                   purchase
                     ? "+"
                     : "-"
                 }
-                ${money(txn.amount)}
-              </div>
 
-              <button
-                class="btn btn-danger transaction-delete"
-                data-delete-txn="${txn.id}">
-                حذف
-              </button>
+                ${formatMoney(
+                  txn.amount
+                )}
+
+              </div>
 
             </div>
           `;
-        })
-        .join("");
+        }
+      ).join("");
   }
+
 
   // =========================================================
-  // إضافة شخص
+  // ADD TRANSACTION
   // =========================================================
 
-  function openPersonModal(
-    person = null
-  ) {
-    const title = person
-      ? "تعديل بيانات الشخص"
-      : "إضافة شخص";
+  function showTransactionModal(type) {
 
-    const body = `
-      <form id="personForm">
-
-        <div class="form-group">
-          <label>الاسم</label>
-          <input
-            id="personName"
-            required
-            value="${escapeHTML(
-              person?.name || ""
-            )}">
-        </div>
-
-        <div class="form-group">
-          <label>رقم الهاتف</label>
-          <input
-            id="personPhone"
-            value="${escapeHTML(
-              person?.phone || ""
-            )}">
-        </div>
-
-        <div class="form-group">
-          <label>التفاصيل</label>
-          <textarea
-            id="personDetails">${escapeHTML(
-              person?.details || ""
-            )}</textarea>
-        </div>
-
-        <button
-          type="submit"
-          class="btn btn-primary">
-          حفظ
-        </button>
-
-      </form>
-    `;
-
-    openModal(title, body);
-
-    $("personForm")?.addEventListener(
-      "submit",
-      async (event) => {
-        event.preventDefault();
-
-        await savePerson(
-          person?.id || null
-        );
-      }
-    );
-  }
-
-  async function savePerson(personId) {
-    if (!state.currentOffice) {
-      notify(
-        "لا يوجد مكتب محدد",
-        "error"
-      );
-
-      return;
-    }
-
-    const name =
-      $("personName")?.value.trim() || "";
-
-    const phone =
-      $("personPhone")?.value.trim() || "";
-
-    const details =
-      $("personDetails")?.value.trim() || "";
-
-    if (!name) {
-      notify(
-        "اسم الشخص مطلوب",
-        "error"
-      );
-
-      return;
-    }
-
-    try {
-      if (personId) {
-        const { error } =
-          await supabaseClient
-            .from("people")
-            .update({
-              name,
-              phone,
-              details,
-              updated_at:
-                new Date().toISOString()
-            })
-            .eq("id", personId)
-            .eq(
-              "office_id",
-              state.currentOffice.id
-            );
-
-        if (error) {
-          console.error(
-            "Update person:",
-            error
-          );
-
-          notify(
-            "فشل تعديل الشخص: " +
-              error.message,
-            "error"
-          );
-
-          return;
-        }
-      } else {
-        const { error } =
-          await supabaseClient
-            .from("people")
-            .insert({
-              office_id:
-                state.currentOffice.id,
-              name,
-              phone,
-              details
-            });
-
-        if (error) {
-          console.error(
-            "Create person:",
-            error
-          );
-
-          notify(
-            "فشل إضافة الشخص: " +
-              error.message,
-            "error"
-          );
-
-          return;
-        }
-      }
-
-      closeModal();
-
-      notify(
-        "تم حفظ بيانات الشخص"
-      );
-
-      await loadOfficeData();
-    } catch (error) {
-      console.error(error);
-
-      notify(
-        "حدث خطأ أثناء حفظ الشخص",
-        "error"
-      );
-    }
-  }
-
-  async function deletePerson(personId) {
     const person =
       state.people.find(
-        (x) => x.id === personId
+        p =>
+          p.id ===
+          state.currentPersonId
       );
 
-    if (!person) return;
 
-    if (
-      !confirm(
-        `هل تريد حذف "${person.name}"؟\nسيتم حذف جميع حركاته أيضًا.`
-      )
-    ) {
+    if (!person) {
       return;
     }
 
-    try {
-      const { error } =
-        await supabaseClient
-          .from("people")
-          .delete()
-          .eq("id", personId)
-          .eq(
-            "office_id",
-            state.currentOffice.id
-          );
 
-      if (error) {
-        notify(
-          "فشل حذف الشخص: " +
-            error.message,
-          "error"
-        );
+    const title =
+      type === "payment"
+        ? "تسجيل تسديد"
+        : "تسجيل شراء";
 
-        return;
-      }
-
-      notify("تم حذف الشخص");
-
-      state.currentPerson = null;
-
-      show($("peopleView"));
-      hide($("personView"));
-
-      await loadOfficeData();
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  // =========================================================
-  // حركة شراء / تسديد
-  // =========================================================
-
-  function openTransactionModal(
-    type
-  ) {
-    const purchase =
-      type === "purchase";
-
-    const title = purchase
-      ? "إضافة شراء"
-      : "إضافة تسديد";
-
-    const body = `
-      <form id="transactionForm">
-
-        <div class="form-group">
-
-          <label>
-            المبلغ
-          </label>
-
-          <input
-            id="transactionAmount"
-            type="number"
-            min="0.01"
-            step="0.01"
-            required
-            placeholder="0">
-
-        </div>
-
-        <div class="form-group">
-
-          <label>
-            التفاصيل
-          </label>
-
-          <textarea
-            id="transactionDetails"
-            placeholder="تفاصيل الحركة..."></textarea>
-
-        </div>
-
-        <div class="form-group">
-
-          <label>
-            التاريخ
-          </label>
-
-          <input
-            id="transactionDate"
-            type="datetime-local"
-            value="${getDateTimeLocal()}">
-
-        </div>
-
-        <button
-          type="submit"
-          class="btn ${
-            purchase
-              ? "btn-danger"
-              : "btn-success"
-          }">
-
-          ${
-            purchase
-              ? "حفظ الشراء"
-              : "حفظ التسديد"
-          }
-
-        </button>
-
-      </form>
-    `;
 
     openModal(
       title,
-      body
+      `
+        <form id="transactionForm">
+
+          <div class="form-group">
+
+            <label>
+              المبلغ
+            </label>
+
+            <input
+              id="transactionAmount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              التفاصيل
+            </label>
+
+            <textarea
+              id="transactionDetails">
+            </textarea>
+
+          </div>
+
+
+          <button
+            type="submit"
+            class="btn ${
+              type === "payment"
+                ? "btn-success"
+                : "btn-danger"
+            }"
+            style="width:100%">
+
+            ${
+              type === "payment"
+                ? "حفظ التسديد"
+                : "حفظ الشراء"
+            }
+
+          </button>
+
+        </form>
+      `
     );
 
-    $("transactionForm")?.addEventListener(
+
+    $("transactionForm").addEventListener(
       "submit",
-      async (event) => {
+      async function (event) {
+
         event.preventDefault();
 
-        await saveTransaction(
-          type
-        );
-      }
-    );
-  }
 
-  function getDateTimeLocal() {
-    const date = new Date();
-
-    const pad = (n) =>
-      String(n).padStart(2, "0");
-
-    return (
-      date.getFullYear() +
-      "-" +
-      pad(date.getMonth() + 1) +
-      "-" +
-      pad(date.getDate()) +
-      "T" +
-      pad(date.getHours()) +
-      ":" +
-      pad(date.getMinutes())
-    );
-  }
-
-  async function saveTransaction(type) {
-    if (
-      !state.currentOffice ||
-      !state.currentPerson
-    ) {
-      notify(
-        "حدد الشخص أولاً",
-        "error"
-      );
-
-      return;
-    }
-
-    const amount =
-      Number(
-        $("transactionAmount")
-          ?.value
-      );
-
-    const details =
-      $("transactionDetails")
-        ?.value.trim() || "";
-
-    const dateInput =
-      $("transactionDate")
-        ?.value;
-
-    if (!amount || amount <= 0) {
-      notify(
-        "اكتب مبلغًا صحيحًا",
-        "error"
-      );
-
-      return;
-    }
-
-    const date =
-      dateInput
-        ? new Date(
-            dateInput
-          ).toISOString()
-        : new Date().toISOString();
-
-    try {
-      const { error } =
-        await supabaseClient
-          .from("transactions")
-          .insert({
-            office_id:
-              state.currentOffice.id,
-
-            person_id:
-              state.currentPerson.id,
-
-            type,
-
-            amount,
-
-            details,
-
-            date
-          });
-
-      if (error) {
-        console.error(
-          "Save transaction:",
-          error
-        );
-
-        notify(
-          "فشل حفظ الحركة: " +
-            error.message,
-          "error"
-        );
-
-        return;
-      }
-
-      closeModal();
-
-      notify(
-        type === "purchase"
-          ? "تم حفظ الشراء"
-          : "تم حفظ التسديد"
-      );
-
-      await loadOfficeData();
-
-      // إعادة فتح الشخص بعد التحديث
-      const person =
-        state.people.find(
-          (x) =>
-            x.id ===
-            state.currentPerson.id
-        );
-
-      if (person) {
-        state.currentPerson = person;
-        renderPerson();
-      }
-    } catch (error) {
-      console.error(error);
-
-      notify(
-        "حدث خطأ أثناء حفظ الحركة",
-        "error"
-      );
-    }
-  }
-
-  // =========================================================
-  // حذف حركة
-  // =========================================================
-
-  async function deleteTransaction(
-    transactionId
-  ) {
-    if (
-      !confirm(
-        "هل تريد حذف هذه الحركة؟"
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const { error } =
-        await supabaseClient
-          .from("transactions")
-          .delete()
-          .eq(
-            "id",
-            transactionId
-          )
-          .eq(
-            "office_id",
-            state.currentOffice.id
+        const amount =
+          Number(
+            $("transactionAmount")
+              .value
           );
 
-      if (error) {
-        notify(
-          "فشل حذف الحركة: " +
-            error.message,
-          "error"
-        );
 
-        return;
+        if (
+          !amount ||
+          amount <= 0
+        ) {
+
+          alert(
+            "اكتب مبلغ صحيح."
+          );
+
+          return;
+        }
+
+
+        const result =
+          await supabaseClient
+            .from("transactions")
+            .insert({
+
+              office_id:
+                state.currentOfficeId,
+
+              person_id:
+                state.currentPersonId,
+
+              type: type,
+
+              amount: amount,
+
+              details:
+                $("transactionDetails")
+                  .value.trim(),
+
+              date:
+                new Date()
+                  .toISOString()
+
+            });
+
+
+        if (result.error) {
+
+          console.error(
+            "Create transaction:",
+            result.error
+          );
+
+          alert(
+            result.error.message
+          );
+
+          return;
+        }
+
+
+        closeModal();
+
+        await loadOfficeData();
+
+        renderPersonPage();
       }
-
-      notify("تم حذف الحركة");
-
-      await loadOfficeData();
-
-      if (state.currentPerson) {
-        renderPerson();
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    );
   }
 
+
   // =========================================================
-  // Modal
+  // EDIT PERSON
   // =========================================================
 
-  function openModal(
-    title,
-    body
-  ) {
-    setText(
-      "modalTitle",
-      title
+  function showEditPersonModal() {
+
+    const person =
+      state.people.find(
+        p =>
+          p.id ===
+          state.currentPersonId
+      );
+
+
+    if (!person) {
+      return;
+    }
+
+
+    openModal(
+      "تعديل بيانات الشخص",
+      `
+        <form id="editPersonForm">
+
+          <div class="form-group">
+
+            <label>
+              الاسم
+            </label>
+
+            <input
+              id="editPersonName"
+              value="${escapeHtml(
+                person.name
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الهاتف
+            </label>
+
+            <input
+              id="editPersonPhone"
+              value="${escapeHtml(
+                person.phone || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              التفاصيل
+            </label>
+
+            <textarea
+              id="editPersonDetails"
+            >${escapeHtml(
+              person.details || ""
+            )}</textarea>
+
+          </div>
+
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+            style="width:100%">
+
+            حفظ
+
+          </button>
+
+        </form>
+      `
     );
 
-    const modalBody =
-      $("modalBody");
 
-    if (modalBody) {
-      modalBody.innerHTML = body;
-    }
+    $("editPersonForm")
+      .addEventListener(
+        "submit",
+        async function (event) {
 
-    show($("modal"));
+          event.preventDefault();
+
+
+          const result =
+            await supabaseClient
+              .from("people")
+              .update({
+
+                name:
+                  $("editPersonName")
+                    .value.trim(),
+
+                phone:
+                  $("editPersonPhone")
+                    .value.trim(),
+
+                details:
+                  $("editPersonDetails")
+                    .value.trim()
+
+              })
+              .eq(
+                "id",
+                state.currentPersonId
+              )
+              .eq(
+                "office_id",
+                state.currentOfficeId
+              );
+
+
+          if (result.error) {
+
+            console.error(
+              "Update person:",
+              result.error
+            );
+
+            alert(
+              result.error.message
+            );
+
+            return;
+          }
+
+
+          closeModal();
+
+          await loadOfficeData();
+
+          renderPersonPage();
+        }
+      );
   }
 
-  function closeModal() {
-    hide($("modal"));
-
-    const body =
-      $("modalBody");
-
-    if (body) {
-      body.innerHTML = "";
-    }
-  }
 
   // =========================================================
-  // تصدير البيانات
+  // EXPORT
   // =========================================================
 
   function exportData() {
-    if (!state.currentOffice) {
-      notify(
-        "لا يوجد مكتب",
-        "error"
-      );
 
-      return;
-    }
-
-    const backup = {
-      version: 1,
-
-      exported_at:
-        new Date().toISOString(),
+    const data = {
 
       office: state.currentOffice,
 
       people: state.people,
 
       transactions:
-        state.transactions
+        state.transactions,
+
+      exported_at:
+        new Date().toISOString()
+
     };
+
 
     const blob =
       new Blob(
         [
           JSON.stringify(
-            backup,
+            data,
             null,
             2
           )
@@ -2027,471 +2722,607 @@ hideLoadingScreen();
         }
       );
 
+
     const url =
       URL.createObjectURL(
         blob
       );
 
+
     const a =
-      document.createElement("a");
+      document.createElement(
+        "a"
+      );
+
 
     a.href = url;
 
     a.download =
-      "debt-book-backup-" +
-      new Date()
-        .toISOString()
-        .slice(0, 10) +
-      ".json";
-
-    document.body.appendChild(a);
+      `debt-book-${todayString()}.json`;
 
     a.click();
 
-    a.remove();
 
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(
+      url
+    );
   }
 
+
   // =========================================================
-  // استيراد البيانات
+  // IMPORT
   // =========================================================
 
-  async function importData(file) {
-    if (!file) return;
+  function importData() {
 
-    if (!state.currentOffice) {
-      notify(
-        "لا يوجد مكتب",
+    const input =
+      $("importFile");
+
+
+    if (input) {
+      input.click();
+    }
+  }
+
+
+  async function handleImport(event) {
+
+    const file =
+      event.target.files?.[0];
+
+
+    if (!file) {
+      return;
+    }
+
+
+    try {
+
+      const text =
+        await file.text();
+
+
+      const data =
+        JSON.parse(text);
+
+
+      if (
+        !data.people ||
+        !data.transactions
+      ) {
+
+        throw new Error(
+          "Invalid backup"
+        );
+      }
+
+
+      const ok =
+        confirm(
+          "سيتم استيراد البيانات إلى المكتب الحالي. هل تريد المتابعة؟"
+        );
+
+
+      if (!ok) {
+        return;
+      }
+
+
+      // استيراد الأشخاص
+      for (
+        const person of data.people
+      ) {
+
+        const personResult =
+          await supabaseClient
+            .from("people")
+            .insert({
+
+              office_id:
+                state.currentOfficeId,
+
+              name:
+                person.name || "",
+
+              phone:
+                person.phone || "",
+
+              details:
+                person.details || ""
+
+            })
+            .select()
+            .single();
+
+
+        if (personResult.error) {
+          throw personResult.error;
+        }
+      }
+
+
+      alert(
+        "تم استيراد الأشخاص. الحركات تحتاج ربطًا جديدًا بالأشخاص."
+      );
+
+
+      await loadOfficeData();
+
+    } catch (error) {
+
+      console.error(
+        "Import error:",
+        error
+      );
+
+      alert(
+        "تعذر استيراد النسخة."
+      );
+
+    } finally {
+
+      event.target.value = "";
+    }
+  }
+
+
+  // =========================================================
+  // EVENTS
+  // =========================================================
+
+  function setupEvents() {
+
+    // Login
+    const loginForm =
+      $("loginForm");
+
+    if (loginForm) {
+
+      loginForm.addEventListener(
+        "submit",
+        handleLogin
+      );
+    }
+
+
+    // Admin logout
+    const adminLogout =
+      $("adminLogoutBtn");
+
+    if (adminLogout) {
+
+      adminLogout.addEventListener(
+        "click",
+        adminLogout
+      );
+    }
+
+
+    // App logout
+    const logoutBtn =
+      $("logoutBtn");
+
+    if (logoutBtn) {
+
+      logoutBtn.addEventListener(
+        "click",
+        logout
+      );
+    }
+
+
+    // Add office
+    const addOffice =
+      $("addOfficeBtn");
+
+    if (addOffice) {
+
+      addOffice.addEventListener(
+        "click",
+        showAddOfficeModal
+      );
+    }
+
+
+    // Office search
+    const officeSearch =
+      $("officeSearch");
+
+    if (officeSearch) {
+
+      officeSearch.addEventListener(
+        "input",
+        function (event) {
+
+          state.officeSearch =
+            event.target.value;
+
+          renderOffices();
+
+        }
+      );
+    }
+
+
+    // Search people
+    const searchInput =
+      $("searchInput");
+
+    if (searchInput) {
+
+      searchInput.addEventListener(
+        "input",
+        function (event) {
+
+          state.searchQuery =
+            event.target.value;
+
+          renderPeople();
+
+        }
+      );
+    }
+
+
+    // Add person
+    const addPerson =
+      $("addPersonBtn");
+
+    if (addPerson) {
+
+      addPerson.addEventListener(
+        "click",
+        showAddPersonModal
+      );
+    }
+
+
+    // Back
+    const backBtn =
+      $("backBtn");
+
+    if (backBtn) {
+
+      backBtn.addEventListener(
+        "click",
+        function () {
+
+          $("personView")
+            .classList.add(
+              "hidden"
+            );
+
+          $("peopleView")
+            .classList.remove(
+              "hidden"
+            );
+
+          state.currentPersonId =
+            null;
+
+        }
+      );
+    }
+
+
+    // Payment
+    const payBtn =
+      $("payBtn");
+
+    if (payBtn) {
+
+      payBtn.addEventListener(
+        "click",
+        function () {
+
+          showTransactionModal(
+            "payment"
+          );
+
+        }
+      );
+    }
+
+
+    // Purchase
+    const purchaseBtn =
+      $("purchaseBtn");
+
+    if (purchaseBtn) {
+
+      purchaseBtn.addEventListener(
+        "click",
+        function () {
+
+          showTransactionModal(
+            "purchase"
+          );
+
+        }
+      );
+    }
+
+
+    // Edit person
+    const editPersonBtn =
+      $("editPersonBtn");
+
+    if (editPersonBtn) {
+
+      editPersonBtn.addEventListener(
+        "click",
+        showEditPersonModal
+      );
+    }
+
+
+    // Export
+    const exportBtn =
+      $("exportBtn");
+
+    if (exportBtn) {
+
+      exportBtn.addEventListener(
+        "click",
+        exportData
+      );
+    }
+
+
+    // Import
+    const importBtn =
+      $("importBtn");
+
+    if (importBtn) {
+
+      importBtn.addEventListener(
+        "click",
+        importData
+      );
+    }
+
+
+    const importFile =
+      $("importFile");
+
+    if (importFile) {
+
+      importFile.addEventListener(
+        "change",
+        handleImport
+      );
+    }
+
+
+    // Close modal
+    const modalClose =
+      $("modalClose");
+
+    if (modalClose) {
+
+      modalClose.addEventListener(
+        "click",
+        closeModal
+      );
+    }
+
+
+    const modal =
+      $("modal");
+
+    if (modal) {
+
+      modal.addEventListener(
+        "click",
+        function (event) {
+
+          if (
+            event.target ===
+            modal
+          ) {
+
+            closeModal();
+          }
+
+        }
+      );
+    }
+
+
+    // Back admin
+    const backToAdmin =
+      $("backToAdminBtn");
+
+    if (backToAdmin) {
+
+      backToAdmin.addEventListener(
+        "click",
+        function () {
+
+          if (
+            state.role === "admin"
+          ) {
+
+            showAdmin();
+          }
+
+        }
+      );
+    }
+  }
+
+
+  // =========================================================
+  // GLOBAL FUNCTIONS
+  // =========================================================
+
+  window.openPerson =
+    openPerson;
+
+  window.editOffice =
+    editOffice;
+
+  window.toggleOfficeActive =
+    toggleOfficeActive;
+
+  window.toggleOfficeContract =
+    toggleOfficeContract;
+
+  window.deleteOffice =
+    deleteOffice;
+
+
+  // =========================================================
+  // AUTH STATE
+  // =========================================================
+
+  function setupAuthListener() {
+
+    if (!supabaseClient) {
+      return;
+    }
+
+
+    supabaseClient.auth.onAuthStateChange(
+      function (event, session) {
+
+        console.log(
+          "Supabase Auth:",
+          event
+        );
+
+
+        state.session =
+          session;
+
+
+        if (
+          event === "SIGNED_OUT"
+        ) {
+
+          if (
+            state.role === "admin"
+          ) {
+
+            resetState();
+
+            showLogin();
+          }
+        }
+
+      }
+    );
+  }
+
+
+  // =========================================================
+  // INITIALIZE
+  // =========================================================
+
+  async function init() {
+
+    hideLoading();
+
+    updateConnectionStatus();
+
+    setupEvents();
+
+    setupAuthListener();
+
+
+    if (!supabaseClient) {
+
+      showLogin();
+
+      showLoginMessage(
+        "Supabase غير مضبوط. افتح supabase-config.js وتأكد من الرابط والمفتاح.",
         "error"
       );
 
       return;
     }
 
+
     try {
-      const text =
-        await file.text();
 
-      const backup =
-        JSON.parse(text);
+      const result =
+        await supabaseClient.auth.getSession();
 
-      if (
-        !backup ||
-        !Array.isArray(
-          backup.people
-        ) ||
-        !Array.isArray(
-          backup.transactions
-        )
-      ) {
-        throw new Error(
-          "ملف النسخة الاحتياطية غير صحيح"
+
+      if (result.error) {
+
+        console.error(
+          "getSession:",
+          result.error
         );
-      }
 
-      if (
-        !confirm(
-          "سيتم استيراد البيانات إلى المكتب الحالي. هل تريد المتابعة؟"
-        )
-      ) {
+        showLogin();
+
         return;
       }
 
-      const officeId =
-        state.currentOffice.id;
 
-      // الأشخاص
-      const peopleMap =
-        new Map();
+      const session =
+        result.data?.session;
 
-      for (
-        const oldPerson of backup.people
-      ) {
-        const { data, error } =
-          await supabaseClient
-            .from("people")
-            .insert({
-              office_id:
-                officeId,
 
-              name:
-                oldPerson.name ||
-                "بدون اسم",
+      if (session) {
 
-              phone:
-                oldPerson.phone ||
-                "",
-
-              details:
-                oldPerson.details ||
-                ""
-            })
-            .select()
-            .single();
-
-        if (error) {
-          console.error(
-            "Import person:",
-            error
-          );
-
-          continue;
-        }
-
-        peopleMap.set(
-          oldPerson.id,
-          data.id
+        console.log(
+          "Existing Supabase session"
         );
-      }
 
-      // الحركات
-      for (
-        const oldTxn of backup.transactions
-      ) {
-        const newPersonId =
-          peopleMap.get(
-            oldTxn.person_id
-          );
 
-        if (!newPersonId) continue;
+        state.session =
+          session;
 
-        const { error } =
-          await supabaseClient
-            .from("transactions")
-            .insert({
-              office_id:
-                officeId,
+        state.role =
+          "admin";
 
-              person_id:
-                newPersonId,
-
-              type:
-                oldTxn.type,
-
-              amount:
-                Number(
-                  oldTxn.amount
-                ),
-
-              details:
-                oldTxn.details ||
-                "",
-
-              date:
-                oldTxn.date ||
-                new Date().toISOString()
-            });
-
-        if (error) {
-          console.error(
-            "Import transaction:",
-            error
-          );
-        }
-      }
-
-      notify(
-        "تم استيراد البيانات"
-      );
-
-      await loadOfficeData();
-    } catch (error) {
-      console.error(
-        "Import:",
-        error
-      );
-
-      notify(
-        "فشل استيراد النسخة: " +
-          error.message,
-        "error"
-      );
-    }
-  }
-
-  // =========================================================
-  // الأحداث
-  // =========================================================
-
-  function setupEvents() {
-    // Login
-    $("loginForm")?.addEventListener(
-      "submit",
-      handleLogin
-    );
-
-    // Logout
-    $("logoutBtn")?.addEventListener(
-      "click",
-      logout
-    );
-
-    $("adminLogoutBtn")?.addEventListener(
-      "click",
-      logout
-    );
-
-    // Add office
-    $("addOfficeBtn")?.addEventListener(
-      "click",
-      () => openOfficeModal()
-    );
-
-    // Search offices
-    $("officeSearch")?.addEventListener(
-      "input",
-      renderOffices
-    );
-
-    // Search people
-    $("searchInput")?.addEventListener(
-      "input",
-      renderPeople
-    );
-
-    // Add person
-    $("addPersonBtn")?.addEventListener(
-      "click",
-      () => openPersonModal()
-    );
-
-    // Back person
-    $("backBtn")?.addEventListener(
-      "click",
-      () => {
-        state.currentPerson = null;
-
-        show($("peopleView"));
-        hide($("personView"));
-
-        renderPeople();
-      }
-    );
-
-    // Pay
-    $("payBtn")?.addEventListener(
-      "click",
-      () =>
-        openTransactionModal(
-          "payment"
-        )
-    );
-
-    // Purchase
-    $("purchaseBtn")?.addEventListener(
-      "click",
-      () =>
-        openTransactionModal(
-          "purchase"
-        )
-    );
-
-    // Edit person
-    $("editPersonBtn")?.addEventListener(
-      "click",
-      () => {
-        if (
-          state.currentPerson
-        ) {
-          openPersonModal(
-            state.currentPerson
-          );
-        }
-      }
-    );
-
-    // Back admin
-    $("backToAdminBtn")?.addEventListener(
-      "click",
-      () => {
-        state.currentOffice = null;
-        state.currentPerson = null;
-        state.role = "admin";
 
         showAdmin();
 
-        loadOffices();
-      }
-    );
+      } else {
 
-    // Export
-    $("exportBtn")?.addEventListener(
-      "click",
-      exportData
-    );
-
-    // Import
-    $("importBtn")?.addEventListener(
-      "click",
-      () => {
-        $("importFile")?.click();
-      }
-    );
-
-    $("importFile")?.addEventListener(
-      "change",
-      (event) => {
-        const file =
-          event.target.files?.[0];
-
-        if (file) {
-          importData(file);
-        }
-
-        event.target.value = "";
-      }
-    );
-
-    // Modal close
-    $("modalClose")?.addEventListener(
-      "click",
-      closeModal
-    );
-
-    $("modal")?.addEventListener(
-      "click",
-      (event) => {
-        if (
-          event.target ===
-          $("modal")
-        ) {
-          closeModal();
-        }
-      }
-    );
-
-    // Offices list delegation
-    $("officesList")?.addEventListener(
-      "click",
-      (event) => {
-        const editBtn =
-          event.target.closest(
-            "[data-edit-office]"
-          );
-
-        if (editBtn) {
-          const id =
-            editBtn.dataset
-              .editOffice;
-
-          const office =
-            state.offices.find(
-              (x) => x.id === id
-            );
-
-          if (office) {
-            openOfficeModal(
-              office
-            );
-          }
-
-          return;
-        }
-
-        const deleteBtn =
-          event.target.closest(
-            "[data-delete-office]"
-          );
-
-        if (deleteBtn) {
-          deleteOffice(
-            deleteBtn.dataset
-              .deleteOffice
-          );
-
-          return;
-        }
-      }
-    );
-
-    // People list delegation
-    $("peopleList")?.addEventListener(
-      "click",
-      (event) => {
-        const item =
-          event.target.closest(
-            "[data-person]"
-          );
-
-        if (!item) return;
-
-        openPerson(
-          item.dataset.person
+        console.log(
+          "No Supabase session"
         );
+
+        showLogin();
       }
-    );
 
-    // Transactions
-    $("transactionsList")
-      ?.addEventListener(
-        "click",
-        (event) => {
-          const btn =
-            event.target.closest(
-              "[data-delete-txn]"
-            );
 
-          if (!btn) return;
-
-          deleteTransaction(
-            btn.dataset
-              .deleteTxn
-          );
-        }
-      );
-
-    // Keyboard ESC
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          event.key === "Escape"
-        ) {
-          closeModal();
-        }
-      }
-    );
-  }
-
-  // =========================================================
-  // حماية من عدم وجود الصفحة
-  // =========================================================
-
-  function boot() {
-    try {
-      setupEvents();
-
-      init();
     } catch (error) {
+
       console.error(
-        "Application boot error:",
+        "Initialization error:",
         error
       );
 
-      showLogin();
+      hideLoading();
 
-      notify(
-        "حدث خطأ في تشغيل التطبيق. افتح Console لمعرفة التفاصيل.",
-        "error"
-      );
+      showLogin();
     }
   }
 
+
   // =========================================================
-  // بدء التطبيق
+  // START
   // =========================================================
 
   if (
     document.readyState ===
     "loading"
   ) {
+
     document.addEventListener(
       "DOMContentLoaded",
-      boot
+      init
     );
+
   } else {
-    boot();
+
+    init();
   }
 
 })();
