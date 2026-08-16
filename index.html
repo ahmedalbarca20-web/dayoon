@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
+<<<<<<< HEAD
 
   <!-- منع الزوم -->
   <meta
@@ -64,10 +65,25 @@
 
     <div class="login-card">
 
+=======
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>دفتر الديون</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=7">
+</head>
+<body>
+
+  <!-- صفحة الدخول -->
+  <div id="loginView" class="login-view hidden">
+    <div class="login-card">
+>>>>>>> 9f9d839f3be7f6757438c6c909259fb1e74282d4
       <div class="login-logo">
         <span class="logo-icon">📒</span>
         <h1>دفتر الديون</h1>
       </div>
+<<<<<<< HEAD
 
       <p class="login-subtitle">
         سجّل دخولك للمتابعة
@@ -546,3 +562,147 @@
 
 </body>
 </html>
+=======
+      <p class="login-subtitle">سجّل دخولك للمتابعة</p>
+
+      <div id="loginMessage" class="login-message hidden"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label>البريد الإلكتروني / اسم المستخدم</label>
+          <input type="text" id="loginEmail" placeholder="admin" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>كلمة المرور</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary login-btn" id="loginBtn">دخول</button>
+      </form>
+
+      <p class="login-hint" id="loginHint"></p>
+      <div class="conn-status" id="connStatus">
+        <span class="conn-dot" id="connDot"></span>
+        <span id="connText">جارٍ الفحص...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- لوحة إدارة الأدمن -->
+  <div id="adminView" class="hidden">
+    <header class="app-header">
+      <div class="container header-inner">
+        <div class="logo">
+          <span class="logo-icon">⚙️</span>
+          <div>
+            <h1>لوحة الإدارة</h1>
+            <span class="subtitle">إدارة المكاتب والبروفايلات</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="header-stats">
+            <div class="stat-box">
+              <span class="stat-label">عدد المكاتب</span>
+              <span class="stat-value" id="officesCount">0</span>
+            </div>
+          </div>
+          <button class="btn btn-logout" id="adminLogoutBtn">خروج</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="text" id="officeSearch" placeholder="ابحث عن مكتب...">
+        </div>
+        <button class="btn btn-primary" id="addOfficeBtn">+ إضافة مكتب</button>
+      </div>
+
+      <div id="officesList" class="people-list"></div>
+      <div id="officesEmpty" class="empty-state hidden">
+        <p>لا يوجد مكاتب بعد. اضغط "إضافة مكتب" لإنشاء أول بروفايل.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- التطبيق (صفحة المكتب) -->
+  <div id="appView" class="hidden">
+    <header class="app-header">
+      <div class="container header-inner">
+        <div class="logo">
+          <span class="logo-icon">📒</span>
+          <div>
+            <h1 id="appTitle">دفتر الديون</h1>
+            <span class="subtitle" id="appSubtitle">إدارة الديون بسهولة</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="header-stats">
+            <div class="stat-box">
+              <span class="stat-label">إجمالي المستحق</span>
+              <span class="stat-value" id="totalDebt">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">عدد الأشخاص</span>
+              <span class="stat-value" id="peopleCount">0</span>
+            </div>
+          </div>
+          <button class="btn btn-ghost hidden" id="backToAdminBtn">→ لوحة الإدارة</button>
+          <button class="btn btn-logout" id="logoutBtn">خروج</button>
+        </div>
+      </div>
+      <div class="container">
+        <div id="contractBanner" class="contract-banner hidden"></div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="peopleView" class="view">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="ابحث بالاسم أو رقم الهاتف...">
+          </div>
+          <button class="btn btn-ghost" id="exportBtn" title="تنزيل نسخة احتياطية من البيانات">⬇ تصدير نسخة</button>
+          <button class="btn btn-ghost" id="importBtn" title="استعادة البيانات من نسخة احتياطية">⬆ استيراد نسخة</button>
+          <button class="btn btn-primary" id="addPersonBtn">+ إضافة شخص</button>
+        </div>
+        <input type="file" id="importFile" accept=".json" class="hidden">
+
+        <div id="peopleList" class="people-list"></div>
+        <div id="emptyState" class="empty-state hidden">
+          <p>لا يوجد أشخاص بعد. اضغط "إضافة شخص" للبدء.</p>
+        </div>
+      </section>
+
+      <section id="personView" class="view hidden">
+        <div class="person-header">
+          <button class="btn btn-ghost" id="backBtn">→ الرجوع للقائمة</button>
+        </div>
+        <div class="person-card" id="personCard"></div>
+        <div class="actions-bar">
+          <button class="btn btn-success" id="payBtn">تسديد</button>
+          <button class="btn btn-danger" id="purchaseBtn">شراء مباشر</button>
+          <button class="btn btn-edit" id="editPersonBtn">تعديل بيانات الشخص</button>
+        </div>
+        <h2 class="section-title">سجل الحركات <span class="count-badge" id="txnCount">0</span></h2>
+        <div id="transactionsList" class="transactions-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">عنوان</h3>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js?v=8"></script>
+</body>
+</html>
+>>>>>>> 9f9d839f3be7f6757438c6c909259fb1e74282d4
