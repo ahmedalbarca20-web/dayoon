@@ -5,387 +5,557 @@
   // SUPABASE
   // ============================================================
 
-  const supabase = window.supabaseClient;
+  const CFG = window.SUPABASE_CONFIG || {};
 
-  if (!supabase) {
-    console.error("Supabase client غير موجود. تأكد من supabase-config.js");
-    return;
+  const SUPABASE_URL = CFG.SUPABASE_URL || "";
+  const SUPABASE_ANON_KEY = CFG.SUPABASE_ANON_KEY || "";
+
+  let supabaseClient = null;
+
+  function isSupabaseReady() {
+    return (
+      typeof window.supabase !== "undefined" &&
+      SUPABASE_URL &&
+      SUPABASE_ANON_KEY &&
+      !SUPABASE_URL.includes("YOUR-PROJECT") &&
+      !SUPABASE_ANON_KEY.includes("YOUR-SUPABASE")
+    );
   }
+
+  if (isSupabaseReady()) {
+    // إنشاء Client واحد فقط
+    if (!window.__DEBTBOOK_SUPABASE_CLIENT__) {
+      window.__DEBTBOOK_SUPABASE_CLIENT__ =
+        window.supabase.createClient(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY
+        );
+    }
+
+    supabaseClient =
+      window.__DEBTBOOK_SUPABASE_CLIENT__;
+  }
+
 
   // ============================================================
   // STATE
   // ============================================================
 
   const state = {
-    user: null,
     role: null,
 
     offices: [],
-    currentOfficeId: null,
+
+    currentOffice: null,
 
     people: [],
-    currentPersonId: null,
 
-    searchQuery: ""
+    transactions: [],
+
+    currentPerson: null,
+
+    search: "",
+
+    officeSearch: ""
   };
 
+
   // ============================================================
-  // HELPERS
+  // DOM
   // ============================================================
 
-  const $ = (id) => document.getElementById(id);
+  const $ = (id) =>
+    document.getElementById(id);
 
-  function show(el) {
-    if (el) el.classList.remove("hidden");
-  }
 
-  function hide(el) {
-    if (el) el.classList.add("hidden");
-  }
+  // ============================================================
+  // INIT
+  // ============================================================
 
-  function setText(id, value) {
-    const el = $(id);
-    if (el) el.textContent = value ?? "";
-  }
+  document.addEventListener(
+    "DOMContentLoaded",
+    init
+  );
 
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
 
-  function money(value) {
-    const number = Number(value || 0);
+  async function init() {
 
-    return number.toLocaleString("ar-IQ", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    });
-  }
+    setupEvents();
 
-  function formatDate(value) {
-    if (!value) return "";
+    checkConnection();
 
-    const d = new Date(value);
+    if (!supabaseClient) {
 
-    if (Number.isNaN(d.getTime())) return value;
+      showLogin();
 
-    return d.toLocaleDateString("ar-IQ", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    });
-  }
+      showLoginMessage(
+        "لم يتم إعداد Supabase بشكل صحيح.",
+        "error"
+      );
 
-  function formatDateTime(value) {
-    if (!value) return "";
+      hideLoading();
 
-    const d = new Date(value);
-
-    if (Number.isNaN(d.getTime())) return value;
-
-    return d.toLocaleString("ar-IQ", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-
-  function showLoginMessage(message, type = "error") {
-    const el = $("loginMessage");
-
-    if (!el) return;
-
-    el.textContent = message;
-    el.className = "login-message";
-
-    if (type === "success") {
-      el.classList.add("success");
-    } else {
-      el.classList.add("error");
+      return;
     }
 
-    show(el);
-  }
+    try {
 
-  function clearLoginMessage() {
-    hide($("loginMessage"));
-  }
+      const {
+        data: {
+          session
+        }
+      } = await supabaseClient.auth.getSession();
 
-  function showModal(title, html) {
-    setText("modalTitle", title);
+      if (session && session.user) {
 
-    const body = $("modalBody");
+        state.role = "admin";
 
-    if (body) {
-      body.innerHTML = html;
+        await showAdmin();
+
+      } else {
+
+        showLogin();
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Supabase session error:",
+        error
+      );
+
+      showLogin();
+
     }
 
-    show($("modal"));
+    hideLoading();
   }
 
-  function closeModal() {
-    hide($("modal"));
-  }
 
   // ============================================================
-  // CONNECTION STATUS
+  // EVENTS
+  // ============================================================
+
+  function setupEvents() {
+
+    // Login
+    $("loginForm")?.addEventListener(
+      "submit",
+      handleLogin
+    );
+
+
+    // Admin logout
+    $("adminLogoutBtn")?.addEventListener(
+      "click",
+      logout
+    );
+
+
+    // Office logout
+    $("logoutBtn")?.addEventListener(
+      "click",
+      logout
+    );
+
+
+    // Add office
+    $("addOfficeBtn")?.addEventListener(
+      "click",
+      () => openOfficeModal()
+    );
+
+
+    // Search offices
+    $("officeSearch")?.addEventListener(
+      "input",
+      function () {
+
+        state.officeSearch =
+          this.value.trim().toLowerCase();
+
+        renderOffices();
+
+      }
+    );
+
+
+    // Search people
+    $("searchInput")?.addEventListener(
+      "input",
+      function () {
+
+        state.search =
+          this.value.trim().toLowerCase();
+
+        renderPeople();
+
+      }
+    );
+
+
+    // Add person
+    $("addPersonBtn")?.addEventListener(
+      "click",
+      () => openPersonModal()
+    );
+
+
+    // Back person
+    $("backBtn")?.addEventListener(
+      "click",
+      showPeople
+    );
+
+
+    // Back admin
+    $("backToAdminBtn")?.addEventListener(
+      "click",
+      async function () {
+
+        if (state.role !== "admin") {
+          return;
+        }
+
+        state.currentOffice = null;
+
+        await showAdmin();
+
+      }
+    );
+
+
+    // Payment
+    $("payBtn")?.addEventListener(
+      "click",
+      () => openTransactionModal("payment")
+    );
+
+
+    // Purchase
+    $("purchaseBtn")?.addEventListener(
+      "click",
+      () => openTransactionModal("purchase")
+    );
+
+
+    // Edit person
+    $("editPersonBtn")?.addEventListener(
+      "click",
+      () => openPersonModal(state.currentPerson)
+    );
+
+
+    // Modal close
+    $("modalClose")?.addEventListener(
+      "click",
+      closeModal
+    );
+
+
+    $("modal")?.addEventListener(
+      "click",
+      function (event) {
+
+        if (event.target === $("modal")) {
+          closeModal();
+        }
+
+      }
+    );
+
+  }
+
+
+  // ============================================================
+  // CONNECTION
   // ============================================================
 
   async function checkConnection() {
+
     const dot = $("connDot");
     const text = $("connText");
 
+    if (!supabaseClient) {
+
+      if (dot) {
+        dot.style.background = "#dc2626";
+      }
+
+      if (text) {
+        text.textContent =
+          "Supabase غير متصل";
+      }
+
+      return;
+    }
+
     try {
-      const { error } = await supabase
+
+      const {
+        error
+      } = await supabaseClient
         .from("offices")
         .select("id")
         .limit(1);
 
       if (error) {
-        if (dot) dot.style.background = "#ef4444";
-        if (text) text.textContent = "تعذر الاتصال بقاعدة البيانات";
-        return false;
+
+        console.error(
+          "Supabase connection:",
+          error
+        );
+
+        if (dot) {
+          dot.style.background =
+            "#dc2626";
+        }
+
+        if (text) {
+          text.textContent =
+            "يوجد خطأ في الاتصال";
+        }
+
+      } else {
+
+        if (dot) {
+          dot.style.background =
+            "#16a34a";
+        }
+
+        if (text) {
+          text.textContent =
+            "متصل بـ Supabase";
+        }
+
       }
 
-      if (dot) dot.style.background = "#22c55e";
-      if (text) text.textContent = "متصل بـ Supabase";
-
-      return true;
     } catch (error) {
+
       console.error(error);
 
-      if (dot) dot.style.background = "#ef4444";
-      if (text) text.textContent = "تعذر الاتصال";
-
-      return false;
     }
+
   }
+
 
   // ============================================================
-  // AUTH
+  // LOGIN
   // ============================================================
 
-  async function getCurrentUser() {
-    const {
-      data,
-      error
-    } = await supabase.auth.getUser();
+  async function handleLogin(event) {
 
-    if (error) {
-      console.error(error);
-      return null;
-    }
+    event.preventDefault();
 
-    return data.user || null;
-  }
+    if (!supabaseClient) {
 
-  async function loadProfile(userId) {
-    const {
-      data,
-      error
-    } = await supabase
-      .from("profiles")
-      .select("id, role, office_id")
-      .eq("id", userId)
-      .maybeSingle();
+      showLoginMessage(
+        "Supabase غير مهيأ. تأكد من supabase-config.js",
+        "error"
+      );
 
-    if (error) {
-      console.error("Profile error:", error);
-      return null;
-    }
-
-    return data;
-  }
-
-  async function login(email, password) {
-    clearLoginMessage();
-
-    if (!email || !password) {
-      showLoginMessage("أدخل البريد الإلكتروني وكلمة المرور");
       return;
     }
 
-    const btn = $("loginBtn");
+    const emailOrUsername =
+      $("loginEmail").value.trim();
 
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "جارٍ الدخول...";
+    const password =
+      $("loginPassword").value;
+
+    if (!emailOrUsername || !password) {
+
+      showLoginMessage(
+        "اكتب اسم المستخدم وكلمة المرور.",
+        "error"
+      );
+
+      return;
     }
 
-    try {
-      const {
-        data,
-        error
-      } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password
-      });
+    setLoginLoading(true);
 
-      if (error) {
-        console.error(error);
-        showLoginMessage("بيانات الدخول غير صحيحة");
-        return;
-      }
+    clearLoginMessage();
 
-      state.user = data.user;
 
-      const profile = await loadProfile(state.user.id);
+    // ========================================================
+    // أولاً: تجربة Supabase Auth
+    // للأدمن
+    // ========================================================
 
-      if (!profile) {
-        await supabase.auth.signOut();
+    if (emailOrUsername.includes("@")) {
 
-        showLoginMessage(
-          "هذا الحساب غير مربوط بحساب أدمن في قاعدة البيانات."
-        );
+      try {
 
-        return;
-      }
+        const {
+          data,
+          error
+        } = await supabaseClient.auth.signInWithPassword({
+          email: emailOrUsername,
+          password: password
+        });
 
-      state.role = profile.role;
-      state.currentOfficeId = profile.office_id || null;
+        if (!error && data.user) {
 
-      if (state.role === "admin") {
-        await enterAdmin();
-      } else if (state.role === "office") {
-        if (!state.currentOfficeId) {
-          await supabase.auth.signOut();
+          state.role = "admin";
 
-          showLoginMessage("حساب المكتب غير مربوط بمكتب.");
+          await showAdmin();
+
+          setLoginLoading(false);
+
           return;
         }
 
-        await enterOffice(state.currentOfficeId);
-      } else {
-        await supabase.auth.signOut();
+        if (error) {
 
-        showLoginMessage("نوع الحساب غير معروف.");
+          console.warn(
+            "Auth login:",
+            error.message
+          );
+
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
       }
-    } catch (error) {
-      console.error(error);
-      showLoginMessage("حدث خطأ أثناء تسجيل الدخول");
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "دخول";
-      }
+
     }
+
+
+    // ========================================================
+    // تسجيل دخول المكتب
+    // ========================================================
+
+    try {
+
+      const {
+        data,
+        error
+      } = await supabaseClient
+        .from("offices")
+        .select("*")
+        .eq("username", emailOrUsername)
+        .eq("password", password)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (error) {
+
+        console.error(
+          "Office login:",
+          error
+        );
+
+        showLoginMessage(
+          "تعذر تسجيل الدخول للمكتب. تأكد من سياسات RLS في Supabase.",
+          "error"
+        );
+
+        setLoginLoading(false);
+
+        return;
+      }
+
+      if (!data) {
+
+        showLoginMessage(
+          "اسم المستخدم أو كلمة المرور غير صحيحة.",
+          "error"
+        );
+
+        setLoginLoading(false);
+
+        return;
+      }
+
+
+      // مهم:
+      // المكتب هنا دخول مخصص من جدول offices.
+      // لا يتم تخزين كلمة المرور في الجهاز.
+
+      state.role = "office";
+
+      state.currentOffice = data;
+
+      await showOffice(data);
+
+    } catch (error) {
+
+      console.error(error);
+
+      showLoginMessage(
+        "حدث خطأ أثناء تسجيل الدخول.",
+        "error"
+      );
+
+    }
+
+    setLoginLoading(false);
+
   }
+
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
 
   async function logout() {
+
     try {
-      await supabase.auth.signOut();
+
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
+
     } catch (error) {
+
       console.error(error);
+
     }
 
-    state.user = null;
     state.role = null;
-    state.currentOfficeId = null;
+    state.currentOffice = null;
     state.people = [];
-    state.currentPersonId = null;
+    state.transactions = [];
+    state.currentPerson = null;
 
-    hide($("adminView"));
-    hide($("appView"));
-    show($("loginView"));
+    hideAllViews();
 
-    clearLoginMessage();
+    showLogin();
+
+    $("loginPassword").value = "";
+
   }
 
+
   // ============================================================
-  // VIEWS
+  // ADMIN
   // ============================================================
 
-  async function enterAdmin() {
-    hide($("loginView"));
-    hide($("appView"));
-    show($("adminView"));
+  async function showAdmin() {
 
-    state.currentOfficeId = null;
+    hideAllViews();
+
+    $("adminView")?.classList.remove("hidden");
 
     await loadOffices();
+
   }
 
-  async function enterOffice(officeId) {
-    state.currentOfficeId = officeId;
-
-    hide($("loginView"));
-    hide($("adminView"));
-    show($("appView"));
-
-    hide($("backToAdminBtn"));
-
-    await loadCurrentOffice();
-    await loadPeople();
-
-    showPeopleView();
-  }
-
-  async function enterOfficeFromAdmin(officeId) {
-    state.currentOfficeId = officeId;
-
-    hide($("adminView"));
-    show($("appView"));
-
-    show($("backToAdminBtn"));
-
-    await loadCurrentOffice();
-    await loadPeople();
-
-    showPeopleView();
-  }
-
-  function backToAdmin() {
-    state.currentOfficeId = null;
-    state.currentPersonId = null;
-    state.people = [];
-
-    hide($("appView"));
-    show($("adminView"));
-
-    loadOffices();
-  }
-
-  function showPeopleView() {
-    show($("peopleView"));
-    hide($("personView"));
-
-    state.currentPersonId = null;
-
-    renderPeople();
-    updateStats();
-  }
-
-  function showPersonView(personId) {
-    hide($("peopleView"));
-    show($("personView"));
-
-    state.currentPersonId = personId;
-
-    renderCurrentPerson();
-    loadTransactions(personId);
-  }
-
-  // ============================================================
-  // OFFICES
-  // ============================================================
 
   async function loadOffices() {
-    const list = $("officesList");
 
-    if (list) {
-      list.innerHTML = "<div class='loading'>جارٍ تحميل المكاتب...</div>";
+    if (!supabaseClient) {
+      return;
     }
 
     const {
       data,
       error
-    } = await supabase
+    } = await supabaseClient
       .from("offices")
       .select("*")
       .order("created_at", {
@@ -393,12 +563,16 @@
       });
 
     if (error) {
-      console.error(error);
 
-      if (list) {
-        list.innerHTML =
-          "<div class='empty-state'>حدث خطأ أثناء تحميل المكاتب</div>";
-      }
+      console.error(
+        "Load offices:",
+        error
+      );
+
+      showGlobalError(
+        "تعذر تحميل المكاتب: " +
+        error.message
+      );
 
       return;
     }
@@ -406,1837 +580,2581 @@
     state.offices = data || [];
 
     renderOffices();
+
   }
 
+
+  // ============================================================
+  // RENDER OFFICES
+  // ============================================================
+
   function renderOffices() {
+
     const list = $("officesList");
     const empty = $("officesEmpty");
 
-    if (!list) return;
-
-    let offices = state.offices;
-
-    const search = ($("officeSearch")?.value || "")
-      .trim()
-      .toLowerCase();
-
-    if (search) {
-      offices = offices.filter((office) => {
-        return (
-          String(office.name || "")
-            .toLowerCase()
-            .includes(search) ||
-          String(office.username || "")
-            .toLowerCase()
-            .includes(search) ||
-          String(office.phone || "")
-            .toLowerCase()
-            .includes(search)
-        );
-      });
+    if (!list) {
+      return;
     }
 
-    setText("officesCount", state.offices.length);
+    list.innerHTML = "";
+
+    let offices =
+      [...state.offices];
+
+    if (state.officeSearch) {
+
+      offices = offices.filter(
+        office =>
+          String(
+            office.name || ""
+          )
+            .toLowerCase()
+            .includes(state.officeSearch)
+          ||
+          String(
+            office.username || ""
+          )
+            .toLowerCase()
+            .includes(state.officeSearch)
+      );
+
+    }
+
+
+    $("officesCount").textContent =
+      state.offices.length;
+
 
     if (!offices.length) {
-      list.innerHTML = "";
 
-      if (empty) {
-        show(empty);
-      }
+      empty?.classList.remove(
+        "hidden"
+      );
 
       return;
+
     }
 
-    hide(empty);
+    empty?.classList.add(
+      "hidden"
+    );
 
-    list.innerHTML = offices
-      .map((office) => {
-        const active = office.active !== false;
 
-        return `
-          <div class="person-item office-item">
+    offices.forEach(
+      office => {
 
-            <div class="person-main"
-                 data-office-id="${escapeHtml(office.id)}">
+        const card =
+          document.createElement("div");
 
-              <div class="person-name">
-                ${escapeHtml(office.name)}
+        card.className =
+          "person-item office-card";
+
+
+        const contract =
+          getContractStatus(office);
+
+
+        card.innerHTML = `
+
+          <div class="person-main">
+
+            <div class="person-avatar">
+              🏢
+            </div>
+
+            <div class="person-info">
+
+              <h3>
+                ${escapeHtml(
+                  office.name
+                )}
+              </h3>
+
+              <div class="office-info">
+
+                <div>
+                  👤 اسم المستخدم:
+                  <strong>
+                    ${escapeHtml(
+                      office.username
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  📞 الهاتف:
+                  ${escapeHtml(
+                    office.phone || "-"
+                  )}
+                </div>
+
+                <div>
+                  ${
+                    office.active
+                      ? "🟢 المكتب فعال"
+                      : "🔴 المكتب متوقف"
+                  }
+                </div>
+
               </div>
 
-              <div class="person-meta">
-                ${escapeHtml(office.username || "")}
-                ${office.phone ? " • " + escapeHtml(office.phone) : ""}
+              <div class="
+                contract-box
+                ${contract.className}
+              ">
+
+                📅
+                <strong>
+                  مدة العقد
+                </strong>
+
+                <br>
+
+                من:
+                ${formatDate(
+                  office.contract_start
+                )}
+
+                &nbsp;&nbsp;
+
+                إلى:
+                ${formatDate(
+                  office.contract_end
+                )}
+
+                <br>
+
+                <small>
+                  ${contract.text}
+                </small>
+
               </div>
 
-              ${
-                office.contract_end
-                  ? `
-                    <div class="person-meta">
-                      نهاية العقد:
-                      ${escapeHtml(formatDate(office.contract_end))}
-                    </div>
-                  `
-                  : ""
+            </div>
+
+          </div>
+
+
+          <div class="office-actions">
+
+            <button
+              class="btn btn-primary"
+              data-action="open"
+              data-id="${office.id}"
+            >
+              فتح المكتب
+            </button>
+
+            <button
+              class="btn btn-edit"
+              data-action="edit"
+              data-id="${office.id}"
+            >
+              تعديل
+            </button>
+
+            <button
+              class="btn btn-danger"
+              data-action="delete"
+              data-id="${office.id}"
+            >
+              حذف
+            </button>
+
+          </div>
+
+        `;
+
+
+        list.appendChild(card);
+
+      }
+    );
+
+
+    list
+      .querySelectorAll(
+        "[data-action]"
+      )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            "click",
+            async function () {
+
+              const id =
+                this.dataset.id;
+
+              const action =
+                this.dataset.action;
+
+              const office =
+                state.offices.find(
+                  x => x.id === id
+                );
+
+              if (!office) {
+                return;
               }
 
-            </div>
+              if (action === "open") {
 
-            <div class="person-actions">
+                await showOffice(
+                  office
+                );
 
-              <span class="status-badge ${
-                active ? "active" : "inactive"
-              }">
-                ${active ? "فعال" : "غير فعال"}
-              </span>
+              }
 
-              <button
-                class="btn btn-primary office-open-btn"
-                data-office-id="${escapeHtml(office.id)}">
-                فتح
-              </button>
+              if (action === "edit") {
 
-              <button
-                class="btn btn-edit office-edit-btn"
-                data-office-id="${escapeHtml(office.id)}">
-                تعديل
-              </button>
+                openOfficeModal(
+                  office
+                );
 
-              <button
-                class="btn btn-danger office-delete-btn"
-                data-office-id="${escapeHtml(office.id)}">
-                حذف
-              </button>
+              }
 
-            </div>
+              if (action === "delete") {
 
-          </div>
-        `;
-      })
-      .join("");
+                await deleteOffice(
+                  office
+                );
+
+              }
+
+            }
+          );
+
+        }
+      );
+
   }
 
-  function openAddOfficeModal() {
-    showModal(
-      "إضافة مكتب",
-      `
-        <form id="officeForm">
 
-          <div class="form-group">
-            <label>اسم المكتب</label>
-            <input
-              id="officeName"
-              type="text"
-              required
-              placeholder="مثال: مكتب بغداد">
-          </div>
+  // ============================================================
+  // CONTRACT
+  // ============================================================
 
-          <div class="form-group">
-            <label>اسم المستخدم</label>
-            <input
-              id="officeUsername"
-              type="text"
-              required
-              placeholder="اسم المكتب">
-          </div>
+  function getContractStatus(
+    office
+  ) {
 
-          <div class="form-group">
-            <label>رقم الهاتف</label>
-            <input
-              id="officePhone"
-              type="text"
-              placeholder="07xxxxxxxxx">
-          </div>
+    if (
+      !office.contract_start &&
+      !office.contract_end
+    ) {
 
-          <div class="form-group">
-            <label>التفاصيل</label>
-            <textarea
-              id="officeDetails"
-              rows="3"
-              placeholder="ملاحظات"></textarea>
-          </div>
+      return {
+        text: "لا توجد مدة عقد محددة",
+        className: ""
+      };
 
-          <div class="form-group">
-            <label>بداية العقد</label>
-            <input
-              id="officeContractStart"
-              type="date">
-          </div>
+    }
 
-          <div class="form-group">
-            <label>نهاية العقد</label>
-            <input
-              id="officeContractEnd"
-              type="date">
-          </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary">
-            حفظ المكتب
-          </button>
+    if (!office.contract_end) {
 
-        </form>
-      `
+      return {
+        text: "لا توجد نهاية للعقد",
+        className: "success"
+      };
+
+    }
+
+
+    const today =
+      new Date();
+
+    today.setHours(
+      0,
+      0,
+      0,
+      0
     );
 
-    const form = $("officeForm");
 
-    if (form) {
-      form.addEventListener("submit", async function (event) {
-        event.preventDefault();
+    const end =
+      new Date(
+        office.contract_end +
+        "T00:00:00"
+      );
 
-        await createOffice();
-      });
+
+    const diff =
+      Math.ceil(
+        (
+          end - today
+        ) /
+        (
+          1000 *
+          60 *
+          60 *
+          24
+        )
+      );
+
+
+    if (diff < 0) {
+
+      return {
+        text:
+          "العقد منتهي منذ " +
+          Math.abs(diff) +
+          " يوم",
+        className: "danger"
+      };
+
     }
+
+
+    if (diff <= 7) {
+
+      return {
+        text:
+          "تنبيه: ينتهي العقد خلال " +
+          diff +
+          " يوم",
+        className: "danger"
+      };
+
+    }
+
+
+    if (diff <= 30) {
+
+      return {
+        text:
+          "ينتهي العقد خلال " +
+          diff +
+          " يوم",
+        className: "warning"
+      };
+
+    }
+
+
+    return {
+      text:
+        "العقد ساري",
+      className: "success"
+    };
+
   }
 
-  async function createOffice() {
-    const name = $("officeName")?.value.trim();
-    const username = $("officeUsername")?.value.trim();
-    const phone = $("officePhone")?.value.trim() || "";
-    const details = $("officeDetails")?.value.trim() || "";
+
+  // ============================================================
+  // ADD / EDIT OFFICE
+  // ============================================================
+
+  function openOfficeModal(
+    office = null
+  ) {
+
+    const isEdit =
+      !!office;
+
+    openModal(
+      isEdit
+        ? "تعديل المكتب"
+        : "إضافة مكتب"
+    );
+
+
+    $("modalBody").innerHTML = `
+
+      <form id="officeForm">
+
+        <div class="form-group">
+
+          <label>
+            اسم المكتب
+          </label>
+
+          <input
+            type="text"
+            id="officeName"
+            required
+            value="${escapeAttr(
+              office?.name || ""
+            )}"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            اسم المستخدم
+          </label>
+
+          <input
+            type="text"
+            id="officeUsername"
+            required
+            value="${escapeAttr(
+              office?.username || ""
+            )}"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            كلمة المرور
+          </label>
+
+          <input
+            type="password"
+            id="officePassword"
+            ${
+              isEdit
+                ? ""
+                : "required"
+            }
+            placeholder="${
+              isEdit
+                ? "اتركها فارغة إذا لا تريد تغييرها"
+                : ""
+            }"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            رقم الهاتف
+          </label>
+
+          <input
+            type="text"
+            id="officePhone"
+            value="${escapeAttr(
+              office?.phone || ""
+            )}"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            تفاصيل المكتب
+          </label>
+
+          <textarea
+            id="officeDetails"
+            rows="3"
+          >${escapeHtml(
+            office?.details || ""
+          )}</textarea>
+
+        </div>
+
+
+        <div class="form-row">
+
+          <div class="form-group">
+
+            <label>
+              بداية العقد
+            </label>
+
+            <input
+              type="date"
+              id="contractStart"
+              value="${
+                office?.contract_start || ""
+              }"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              نهاية العقد
+            </label>
+
+            <input
+              type="date"
+              id="contractEnd"
+              value="${
+                office?.contract_end || ""
+              }"
+            >
+
+          </div>
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            حالة المكتب
+          </label>
+
+          <select id="officeActive">
+
+            <option
+              value="true"
+              ${
+                office?.active !== false
+                  ? "selected"
+                  : ""
+              }
+            >
+              فعال
+            </option>
+
+            <option
+              value="false"
+              ${
+                office?.active === false
+                  ? "selected"
+                  : ""
+              }
+            >
+              متوقف
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          id="saveOfficeBtn"
+        >
+          ${
+            isEdit
+              ? "حفظ التعديلات"
+              : "إضافة المكتب"
+          }
+        </button>
+
+      </form>
+
+    `;
+
+
+    $("officeForm").addEventListener(
+      "submit",
+      async function (event) {
+
+        event.preventDefault();
+
+        await saveOffice(
+          office
+        );
+
+      }
+    );
+
+  }
+
+
+  async function saveOffice(
+    oldOffice
+  ) {
+
+    const name =
+      $("officeName")
+        .value
+        .trim();
+
+    const username =
+      $("officeUsername")
+        .value
+        .trim();
+
+    const password =
+      $("officePassword")
+        .value;
+
+    const phone =
+      $("officePhone")
+        .value
+        .trim();
+
+    const details =
+      $("officeDetails")
+        .value
+        .trim();
+
     const contractStart =
-      $("officeContractStart")?.value || null;
+      $("contractStart")
+        .value || null;
+
     const contractEnd =
-      $("officeContractEnd")?.value || null;
+      $("contractEnd")
+        .value || null;
+
+    const active =
+      $("officeActive")
+        .value === "true";
+
 
     if (!name || !username) {
-      alert("اسم المكتب واسم المستخدم مطلوبان");
-      return;
-    }
 
-    const {
-      data,
-      error
-    } = await supabase
-      .from("offices")
-      .insert({
-        name,
-        username,
-        phone,
-        details,
-        active: true,
-        contract_start: contractStart,
-        contract_end: contractEnd
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error(error);
-
-      if (error.code === "23505") {
-        alert("اسم المستخدم موجود مسبقًا");
-      } else {
-        alert("تعذر حفظ المكتب: " + error.message);
-      }
+      alert(
+        "اسم المكتب واسم المستخدم مطلوبان."
+      );
 
       return;
     }
 
-    state.offices.unshift(data);
 
-    closeModal();
-    renderOffices();
+    if (
+      contractStart &&
+      contractEnd &&
+      contractEnd < contractStart
+    ) {
 
-    alert("تم حفظ المكتب بنجاح");
-  }
+      alert(
+        "تاريخ نهاية العقد لا يمكن أن يكون قبل بداية العقد."
+      );
 
-  function openEditOfficeModal(officeId) {
-    const office = state.offices.find(
-      (item) => item.id === officeId
-    );
+      return;
+    }
 
-    if (!office) return;
 
-    showModal(
-      "تعديل المكتب",
-      `
-        <form id="officeEditForm">
+    const button =
+      $("saveOfficeBtn");
 
-          <div class="form-group">
-            <label>اسم المكتب</label>
-            <input
-              id="officeName"
-              type="text"
-              required
-              value="${escapeHtml(office.name)}">
-          </div>
+    button.disabled = true;
 
-          <div class="form-group">
-            <label>اسم المستخدم</label>
-            <input
-              id="officeUsername"
-              type="text"
-              required
-              value="${escapeHtml(office.username)}">
-          </div>
+    button.textContent =
+      "جارٍ الحفظ...";
 
-          <div class="form-group">
-            <label>رقم الهاتف</label>
-            <input
-              id="officePhone"
-              type="text"
-              value="${escapeHtml(office.phone || "")}">
-          </div>
 
-          <div class="form-group">
-            <label>التفاصيل</label>
-            <textarea
-              id="officeDetails"
-              rows="3">${escapeHtml(
-                office.details || ""
-              )}</textarea>
-          </div>
+    try {
 
-          <div class="form-group">
-            <label>بداية العقد</label>
-            <input
-              id="officeContractStart"
-              type="date"
-              value="${escapeHtml(
-                office.contract_start || ""
-              )}">
-          </div>
+      if (!oldOffice) {
 
-          <div class="form-group">
-            <label>نهاية العقد</label>
-            <input
-              id="officeContractEnd"
-              type="date"
-              value="${escapeHtml(
-                office.contract_end || ""
-              )}">
-          </div>
+        if (!password) {
 
-          <div class="form-group">
-            <label>
-              <input
-                id="officeActive"
-                type="checkbox"
-                ${office.active !== false ? "checked" : ""}>
-              المكتب فعال
-            </label>
-          </div>
+          alert(
+            "كلمة المرور مطلوبة."
+          );
 
-          <button
-            type="submit"
-            class="btn btn-primary">
-            حفظ التعديلات
-          </button>
+          button.disabled = false;
+          button.textContent =
+            "إضافة المكتب";
 
-        </form>
-      `
-    );
-
-    const form = $("officeEditForm");
-
-    if (form) {
-      form.addEventListener("submit", async function (event) {
-        event.preventDefault();
-
-        const update = {
-          name: $("officeName").value.trim(),
-          username: $("officeUsername").value.trim(),
-          phone: $("officePhone").value.trim(),
-          details: $("officeDetails").value.trim(),
-          contract_start:
-            $("officeContractStart").value || null,
-          contract_end:
-            $("officeContractEnd").value || null,
-          active: $("officeActive").checked
-        };
-
-        if (!update.name || !update.username) {
-          alert("اسم المكتب واسم المستخدم مطلوبان");
           return;
+
         }
+
 
         const {
           data,
           error
-        } = await supabase
+        } = await supabaseClient
           .from("offices")
-          .update(update)
-          .eq("id", officeId)
+          .insert({
+
+            name,
+
+            username,
+
+            password,
+
+            phone,
+
+            details,
+
+            active,
+
+            contract_start:
+              contractStart,
+
+            contract_end:
+              contractEnd
+
+          })
           .select()
           .single();
 
+
         if (error) {
-          console.error(error);
-          alert("تعذر تعديل المكتب: " + error.message);
-          return;
+          throw error;
         }
 
-        const index = state.offices.findIndex(
-          (item) => item.id === officeId
+        console.log(
+          "Office created:",
+          data
         );
 
-        if (index !== -1) {
-          state.offices[index] = data;
+
+      } else {
+
+        const updateData = {
+
+          name,
+
+          username,
+
+          phone,
+
+          details,
+
+          active,
+
+          contract_start:
+            contractStart,
+
+          contract_end:
+            contractEnd
+
+        };
+
+
+        if (password) {
+
+          updateData.password =
+            password;
+
         }
 
-        closeModal();
-        renderOffices();
 
-        alert("تم تعديل المكتب");
-      });
-    }
-  }
+        const {
+          data,
+          error
+        } = await supabaseClient
+          .from("offices")
+          .update(updateData)
+          .eq("id", oldOffice.id)
+          .select()
+          .single();
 
-  async function deleteOffice(officeId) {
-    const office = state.offices.find(
-      (item) => item.id === officeId
-    );
 
-    if (!office) return;
+        if (error) {
+          throw error;
+        }
 
-    const ok = confirm(
-      `هل أنت متأكد من حذف المكتب "${office.name}"؟\n\nسيتم حذف الأشخاص والحركات التابعة له أيضًا.`
-    );
+        console.log(
+          "Office updated:",
+          data
+        );
 
-    if (!ok) return;
+      }
 
-    const {
-      error
-    } = await supabase
-      .from("offices")
-      .delete()
-      .eq("id", officeId);
 
-    if (error) {
-      console.error(error);
-      alert("تعذر حذف المكتب: " + error.message);
-      return;
-    }
+      closeModal();
 
-    state.offices = state.offices.filter(
-      (item) => item.id !== officeId
-    );
+      await loadOffices();
 
-    renderOffices();
-
-    alert("تم حذف المكتب");
-  }
-
-  // ============================================================
-  // CURRENT OFFICE
-  // ============================================================
-
-  async function loadCurrentOffice() {
-    if (!state.currentOfficeId) return;
-
-    const {
-      data,
-      error
-    } = await supabase
-      .from("offices")
-      .select("*")
-      .eq("id", state.currentOfficeId)
-      .maybeSingle();
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    if (!data) return;
-
-    setText("appTitle", data.name || "دفتر الديون");
-    setText(
-      "appSubtitle",
-      data.details || "إدارة الديون بسهولة"
-    );
-
-    renderContractBanner(data);
-  }
-
-  function renderContractBanner(office) {
-    const banner = $("contractBanner");
-
-    if (!banner) return;
-
-    if (!office.contract_end) {
-      hide(banner);
-      return;
-    }
-
-    const end = new Date(office.contract_end);
-    const now = new Date();
-
-    const diff =
-      Math.ceil(
-        (end.getTime() - now.getTime()) /
-          (1000 * 60 * 60 * 24)
+      alert(
+        "تم الحفظ بنجاح ✅"
       );
 
-    if (diff < 0) {
-      banner.innerHTML = `
-        <strong>⚠️ العقد منتهي</strong>
-        <span>
-          انتهى بتاريخ ${escapeHtml(
-            formatDate(office.contract_end)
-          )}
-        </span>
-      `;
+    } catch (error) {
 
-      show(banner);
-      return;
+      console.error(
+        "Save office:",
+        error
+      );
+
+      alert(
+        "حدث خطأ أثناء الحفظ:\n" +
+        error.message
+      );
+
     }
 
-    if (diff <= 30) {
-      banner.innerHTML = `
-        <strong>⚠️ تنبيه العقد</strong>
-        <span>
-          متبقي ${diff} يوم على انتهاء العقد
-        </span>
-      `;
 
-      show(banner);
-      return;
-    }
+    button.disabled = false;
 
-    hide(banner);
   }
+
+
+  // ============================================================
+  // DELETE OFFICE
+  // ============================================================
+
+  async function deleteOffice(
+    office
+  ) {
+
+    const ok =
+      confirm(
+        "هل أنت متأكد من حذف المكتب؟\n\n" +
+        office.name +
+        "\n\n" +
+        "سيتم حذف الأشخاص والحركات التابعة له."
+      );
+
+    if (!ok) {
+      return;
+    }
+
+
+    try {
+
+      const {
+        error
+      } = await supabaseClient
+        .from("offices")
+        .delete()
+        .eq("id", office.id);
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      await loadOffices();
+
+      alert(
+        "تم حذف المكتب."
+      );
+
+    } catch (error) {
+
+      console.error(
+        error
+      );
+
+      alert(
+        "تعذر حذف المكتب:\n" +
+        error.message
+      );
+
+    }
+
+  }
+
+
+  // ============================================================
+  // OFFICE APP
+  // ============================================================
+
+  async function showOffice(
+    office
+  ) {
+
+    state.currentOffice =
+      office;
+
+    hideAllViews();
+
+    $("appView")
+      ?.classList
+      .remove("hidden");
+
+
+    $("appTitle").textContent =
+      office.name ||
+      "دفتر الديون";
+
+
+    $("appSubtitle").textContent =
+      office.phone
+        ? "📞 " + office.phone
+        : "إدارة الديون بسهولة";
+
+
+    renderContractBanner(
+      office
+    );
+
+
+    if (state.role === "admin") {
+
+      $("backToAdminBtn")
+        ?.classList
+        .remove("hidden");
+
+    } else {
+
+      $("backToAdminBtn")
+        ?.classList
+        .add("hidden");
+
+    }
+
+
+    showPeople();
+
+    await loadPeople();
+
+  }
+
+
+  function renderContractBanner(
+    office
+  ) {
+
+    const banner =
+      $("contractBanner");
+
+    if (!banner) {
+      return;
+    }
+
+
+    if (
+      !office.contract_start &&
+      !office.contract_end
+    ) {
+
+      banner.className =
+        "contract-banner hidden";
+
+      banner.innerHTML = "";
+
+      return;
+
+    }
+
+
+    const status =
+      getContractStatus(
+        office
+      );
+
+
+    banner.className =
+      "contract-banner " +
+      status.className;
+
+
+    banner.innerHTML = `
+
+      📅
+
+      <strong>
+        مدة العقد:
+      </strong>
+
+      من
+      ${formatDate(
+        office.contract_start
+      )}
+
+      إلى
+      ${formatDate(
+        office.contract_end
+      )}
+
+      &nbsp; — &nbsp;
+
+      ${escapeHtml(
+        status.text
+      )}
+
+    `;
+
+  }
+
 
   // ============================================================
   // PEOPLE
   // ============================================================
 
   async function loadPeople() {
-    if (!state.currentOfficeId) return;
 
-    const list = $("peopleList");
-
-    if (list) {
-      list.innerHTML =
-        "<div class='loading'>جارٍ تحميل الأشخاص...</div>";
+    if (
+      !state.currentOffice ||
+      !supabaseClient
+    ) {
+      return;
     }
+
 
     const {
       data,
       error
-    } = await supabase
-      .from("people_with_balance")
+    } = await supabaseClient
+      .from("people")
       .select("*")
-      .eq("office_id", state.currentOfficeId)
+      .eq(
+        "office_id",
+        state.currentOffice.id
+      )
       .order("created_at", {
         ascending: false
       });
 
-    if (error) {
-      console.error(error);
 
-      if (list) {
-        list.innerHTML =
-          "<div class='empty-state'>تعذر تحميل الأشخاص</div>";
-      }
+    if (error) {
+
+      console.error(
+        "Load people:",
+        error
+      );
+
+      showGlobalError(
+        "تعذر تحميل الأشخاص:\n" +
+        error.message
+      );
 
       return;
     }
 
-    state.people = data || [];
+
+    state.people =
+      data || [];
+
+
+    await calculatePeopleBalances();
 
     renderPeople();
-    updateStats();
+
   }
 
-  function renderPeople() {
-    const list = $("peopleList");
-    const empty = $("emptyState");
 
-    if (!list) return;
+  async function calculatePeopleBalances() {
 
-    let people = state.people;
-
-    const search = state.searchQuery.trim().toLowerCase();
-
-    if (search) {
-      people = people.filter((person) => {
-        return (
-          String(person.name || "")
-            .toLowerCase()
-            .includes(search) ||
-          String(person.phone || "")
-            .toLowerCase()
-            .includes(search)
-        );
-      });
-    }
-
-    if (!people.length) {
-      list.innerHTML = "";
-
-      if (empty) {
-        show(empty);
-      }
-
+    if (
+      !state.currentOffice
+    ) {
       return;
     }
 
-    hide(empty);
-
-    list.innerHTML = people
-      .map((person) => {
-        const balance = Number(person.balance || 0);
-
-        let balanceClass = "neutral";
-
-        if (balance > 0) {
-          balanceClass = "debt";
-        } else if (balance < 0) {
-          balanceClass = "credit";
-        }
-
-        return `
-          <div
-            class="person-item"
-            data-person-id="${escapeHtml(person.id)}">
-
-            <div class="person-main">
-
-              <div class="person-name">
-                ${escapeHtml(person.name)}
-              </div>
-
-              <div class="person-meta">
-                ${
-                  person.phone
-                    ? escapeHtml(person.phone)
-                    : "بدون رقم هاتف"
-                }
-              </div>
-
-            </div>
-
-            <div class="person-balance ${balanceClass}">
-              <span class="balance-label">
-                المستحق
-              </span>
-
-              <strong>
-                ${money(balance)}
-              </strong>
-            </div>
-
-            <div class="person-actions">
-
-              <button
-                class="btn btn-primary person-open-btn"
-                data-person-id="${escapeHtml(person.id)}">
-                فتح
-              </button>
-
-              <button
-                class="btn btn-edit person-edit-btn"
-                data-person-id="${escapeHtml(person.id)}">
-                تعديل
-              </button>
-
-              <button
-                class="btn btn-danger person-delete-btn"
-                data-person-id="${escapeHtml(person.id)}">
-                حذف
-              </button>
-
-            </div>
-
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function updateStats() {
-    const total = state.people.reduce(
-      (sum, person) =>
-        sum + Number(person.balance || 0),
-      0
-    );
-
-    setText("totalDebt", money(total));
-    setText("peopleCount", state.people.length);
-  }
-
-  function openAddPersonModal() {
-    showModal(
-      "إضافة شخص",
-      `
-        <form id="personForm">
-
-          <div class="form-group">
-            <label>اسم الشخص</label>
-
-            <input
-              id="personName"
-              type="text"
-              required
-              placeholder="الاسم">
-          </div>
-
-          <div class="form-group">
-            <label>رقم الهاتف</label>
-
-            <input
-              id="personPhone"
-              type="text"
-              placeholder="07xxxxxxxxx">
-          </div>
-
-          <div class="form-group">
-            <label>التفاصيل</label>
-
-            <textarea
-              id="personDetails"
-              rows="3"
-              placeholder="ملاحظات"></textarea>
-          </div>
-
-          <button
-            type="submit"
-            class="btn btn-primary">
-            حفظ الشخص
-          </button>
-
-        </form>
-      `
-    );
-
-    $("personForm").addEventListener(
-      "submit",
-      async function (event) {
-        event.preventDefault();
-
-        await createPerson();
-      }
-    );
-  }
-
-  async function createPerson() {
-    if (!state.currentOfficeId) {
-      alert("لم يتم تحديد المكتب");
-      return;
-    }
-
-    const name = $("personName").value.trim();
-    const phone = $("personPhone").value.trim();
-    const details = $("personDetails").value.trim();
-
-    if (!name) {
-      alert("اسم الشخص مطلوب");
-      return;
-    }
 
     const {
       data,
       error
-    } = await supabase
-      .from("people")
-      .insert({
-        office_id: state.currentOfficeId,
-        name,
-        phone,
-        details
-      })
-      .select()
-      .single();
+    } = await supabaseClient
+      .from("transactions")
+      .select(
+        "person_id,type,amount"
+      )
+      .eq(
+        "office_id",
+        state.currentOffice.id
+      );
+
 
     if (error) {
-      console.error(error);
-      alert("تعذر حفظ الشخص: " + error.message);
+
+      console.error(
+        error
+      );
+
+      return;
+
+    }
+
+
+    const balances = {};
+
+
+    (data || []).forEach(
+      txn => {
+
+        if (
+          !balances[txn.person_id]
+        ) {
+
+          balances[
+            txn.person_id
+          ] = 0;
+
+        }
+
+
+        if (
+          txn.type === "purchase"
+        ) {
+
+          balances[
+            txn.person_id
+          ] += Number(
+            txn.amount
+          );
+
+        } else {
+
+          balances[
+            txn.person_id
+          ] -= Number(
+            txn.amount
+          );
+
+        }
+
+      }
+    );
+
+
+    state.people =
+      state.people.map(
+        person => ({
+
+          ...person,
+
+          balance:
+            Math.max(
+              0,
+              Number(
+                balances[
+                  person.id
+                ] || 0
+              )
+            )
+
+        })
+      );
+
+  }
+
+
+  function renderPeople() {
+
+    const list =
+      $("peopleList");
+
+    const empty =
+      $("emptyState");
+
+
+    if (!list) {
       return;
     }
 
-    state.people.unshift({
-      ...data,
-      balance: 0
-    });
 
-    closeModal();
+    list.innerHTML = "";
 
-    renderPeople();
-    updateStats();
 
-    alert("تم حفظ الشخص في Supabase");
-  }
+    let people =
+      [...state.people];
 
-  function openEditPersonModal(personId) {
-    const person = state.people.find(
-      (item) => item.id === personId
-    );
 
-    if (!person) return;
+    if (state.search) {
 
-    showModal(
-      "تعديل بيانات الشخص",
-      `
-        <form id="personEditForm">
+      people =
+        people.filter(
+          person => {
 
-          <div class="form-group">
-            <label>اسم الشخص</label>
+            const name =
+              String(
+                person.name || ""
+              )
+                .toLowerCase();
 
-            <input
-              id="personName"
-              type="text"
-              required
-              value="${escapeHtml(person.name)}">
-          </div>
-
-          <div class="form-group">
-            <label>رقم الهاتف</label>
-
-            <input
-              id="personPhone"
-              type="text"
-              value="${escapeHtml(
+            const phone =
+              String(
                 person.phone || ""
-              )}">
-          </div>
+              )
+                .toLowerCase();
 
-          <div class="form-group">
-            <label>التفاصيل</label>
+            return (
+              name.includes(
+                state.search
+              ) ||
+              phone.includes(
+                state.search
+              )
+            );
 
-            <textarea
-              id="personDetails"
-              rows="3">${escapeHtml(
-                person.details || ""
-              )}</textarea>
+          }
+        );
+
+    }
+
+
+    const total =
+      state.people.reduce(
+        (
+          sum,
+          person
+        ) =>
+          sum +
+          Number(
+            person.balance || 0
+          ),
+        0
+      );
+
+
+    $("totalDebt").textContent =
+      formatMoney(total);
+
+
+    $("peopleCount").textContent =
+      state.people.length;
+
+
+    if (!people.length) {
+
+      empty?.classList
+        .remove("hidden");
+
+      return;
+
+    }
+
+
+    empty?.classList
+      .add("hidden");
+
+
+    people.forEach(
+      person => {
+
+        const card =
+          document.createElement(
+            "div"
+          );
+
+        card.className =
+          "person-item";
+
+
+        const balance =
+          Number(
+            person.balance || 0
+          );
+
+
+        card.innerHTML = `
+
+          <div class="person-main">
+
+            <div class="person-avatar">
+              👤
+            </div>
+
+            <div class="person-info">
+
+              <h3>
+                ${escapeHtml(
+                  person.name
+                )}
+              </h3>
+
+              <p>
+                📞
+                ${escapeHtml(
+                  person.phone || "-"
+                )}
+              </p>
+
+              <p>
+                💰
+                المستحق:
+
+                <strong
+                  class="${
+                    balance > 0
+                      ? "debt-positive"
+                      : "debt-zero"
+                  }"
+                >
+                  ${formatMoney(
+                    balance
+                  )}
+                </strong>
+              </p>
+
+            </div>
+
           </div>
 
           <button
-            type="submit"
-            class="btn btn-primary">
-            حفظ التعديلات
+            class="btn btn-primary"
+            data-person-id="${person.id}"
+          >
+            فتح
           </button>
 
-        </form>
-      `
-    );
+        `;
 
-    $("personEditForm").addEventListener(
-      "submit",
-      async function (event) {
-        event.preventDefault();
 
-        const update = {
-          name: $("personName").value.trim(),
-          phone: $("personPhone").value.trim(),
-          details: $("personDetails").value.trim()
-        };
-
-        if (!update.name) {
-          alert("اسم الشخص مطلوب");
-          return;
-        }
-
-        const {
-          data,
-          error
-        } = await supabase
-          .from("people")
-          .update(update)
-          .eq("id", personId)
-          .eq("office_id", state.currentOfficeId)
-          .select()
-          .single();
-
-        if (error) {
-          console.error(error);
-          alert(
-            "تعذر تعديل الشخص: " +
-              error.message
+        card
+          .querySelector(
+            "[data-person-id]"
+          )
+          .addEventListener(
+            "click",
+            () =>
+              openPerson(
+                person.id
+              )
           );
-          return;
-        }
 
-        const index = state.people.findIndex(
-          (item) => item.id === personId
-        );
 
-        if (index !== -1) {
-          state.people[index] = {
-            ...state.people[index],
-            ...data
-          };
-        }
+        list.appendChild(card);
 
-        closeModal();
-
-        renderPeople();
-
-        if (state.currentPersonId === personId) {
-          renderCurrentPerson();
-        }
-
-        alert("تم تعديل البيانات");
       }
     );
+
   }
 
-  async function deletePerson(personId) {
-    const person = state.people.find(
-      (item) => item.id === personId
-    );
 
-    if (!person) return;
+  // ============================================================
+  // PERSON
+  // ============================================================
 
-    const ok = confirm(
-      `هل تريد حذف "${person.name}"؟\n\nسيتم حذف جميع حركاته أيضًا.`
-    );
+  async function openPerson(
+    personId
+  ) {
 
-    if (!ok) return;
+    const person =
+      state.people.find(
+        x => x.id === personId
+      );
 
-    const {
-      error
-    } = await supabase
-      .from("people")
-      .delete()
-      .eq("id", personId)
-      .eq("office_id", state.currentOfficeId);
 
-    if (error) {
-      console.error(error);
-      alert("تعذر حذف الشخص: " + error.message);
+    if (!person) {
       return;
     }
 
-    state.people = state.people.filter(
-      (item) => item.id !== personId
-    );
 
-    if (state.currentPersonId === personId) {
-      showPeopleView();
+    state.currentPerson =
+      person;
+
+
+    $("peopleView")
+      ?.classList
+      .add("hidden");
+
+
+    $("personView")
+      ?.classList
+      .remove("hidden");
+
+
+    await loadPersonTransactions();
+
+  }
+
+
+  async function loadPersonTransactions() {
+
+    if (
+      !state.currentPerson ||
+      !state.currentOffice
+    ) {
+      return;
     }
 
-    renderPeople();
-    updateStats();
 
-    alert("تم حذف الشخص");
+    const {
+      data,
+      error
+    } = await supabaseClient
+      .from("transactions")
+      .select("*")
+      .eq(
+        "office_id",
+        state.currentOffice.id
+      )
+      .eq(
+        "person_id",
+        state.currentPerson.id
+      )
+      .order("date", {
+        ascending: false
+      });
+
+
+    if (error) {
+
+      console.error(
+        error
+      );
+
+      alert(
+        "تعذر تحميل سجل الحركات:\n" +
+        error.message
+      );
+
+      return;
+    }
+
+
+    state.transactions =
+      data || [];
+
+
+    renderPerson();
+
   }
 
-  // ============================================================
-  // PERSON DETAILS
-  // ============================================================
 
-  function getCurrentPerson() {
-    return state.people.find(
-      (person) =>
-        person.id === state.currentPersonId
+  function renderPerson() {
+
+    const person =
+      state.currentPerson;
+
+
+    if (!person) {
+      return;
+    }
+
+
+    let balance = 0;
+
+
+    state.transactions.forEach(
+      txn => {
+
+        if (
+          txn.type === "purchase"
+        ) {
+
+          balance +=
+            Number(
+              txn.amount
+            );
+
+        } else {
+
+          balance -=
+            Number(
+              txn.amount
+            );
+
+        }
+
+      }
     );
-  }
 
-  function renderCurrentPerson() {
-    const person = getCurrentPerson();
 
-    if (!person) return;
+    balance =
+      Math.max(
+        0,
+        balance
+      );
 
-    const card = $("personCard");
 
-    if (!card) return;
+    $("personCard").innerHTML = `
 
-    const balance = Number(person.balance || 0);
+      <div class="person-profile">
 
-    card.innerHTML = `
-      <div class="person-card-inner">
-
-        <div>
-          <h2>
-            ${escapeHtml(person.name)}
-          </h2>
-
-          ${
-            person.phone
-              ? `
-                <p>
-                  📱 ${escapeHtml(person.phone)}
-                </p>
-              `
-              : ""
-          }
-
-          ${
-            person.details
-              ? `
-                <p>
-                  ${escapeHtml(person.details)}
-                </p>
-              `
-              : ""
-          }
+        <div class="person-avatar large">
+          👤
         </div>
 
-        <div class="person-card-balance">
+        <div>
 
-          <span>المستحق</span>
+          <h2>
+            ${escapeHtml(
+              person.name
+            )}
+          </h2>
 
-          <strong>
-            ${money(balance)}
-          </strong>
+          <p>
+            📞
+            ${escapeHtml(
+              person.phone || "-"
+            )}
+          </p>
+
+          <p>
+            ${
+              person.details
+                ? escapeHtml(
+                    person.details
+                  )
+                : ""
+            }
+          </p>
+
+          <div>
+
+            💰 المستحق:
+
+            <strong
+              class="${
+                balance > 0
+                  ? "debt-positive"
+                  : "debt-zero"
+              }"
+            >
+              ${formatMoney(
+                balance
+              )}
+            </strong>
+
+          </div>
 
         </div>
 
       </div>
+
     `;
+
+
+    $("txnCount").textContent =
+      state.transactions.length;
+
+
+    renderTransactions();
+
   }
 
-  // ============================================================
-  // TRANSACTIONS
-  // ============================================================
 
-  async function loadTransactions(personId) {
-    const list = $("transactionsList");
+  function renderTransactions() {
 
-    if (list) {
-      list.innerHTML =
-        "<div class='loading'>جارٍ تحميل سجل الحركات...</div>";
-    }
+    const list =
+      $("transactionsList");
 
-    const {
-      data,
-      error
-    } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("person_id", personId)
-      .eq("office_id", state.currentOfficeId)
-      .order("date", {
-        ascending: false
-      });
 
-    if (error) {
-      console.error(error);
-
-      if (list) {
-        list.innerHTML =
-          "<div class='empty-state'>تعذر تحميل الحركات</div>";
-      }
-
+    if (!list) {
       return;
     }
 
-    renderTransactions(data || []);
-  }
 
-  function renderTransactions(transactions) {
-    const list = $("transactionsList");
+    list.innerHTML = "";
 
-    if (!list) return;
 
-    setText("txnCount", transactions.length);
+    if (
+      !state.transactions.length
+    ) {
 
-    if (!transactions.length) {
       list.innerHTML = `
+
         <div class="empty-state">
-          <p>لا توجد حركات لهذا الشخص.</p>
+
+          <p>
+            لا توجد حركات لهذا الشخص.
+          </p>
+
         </div>
+
       `;
 
       return;
+
     }
 
-    list.innerHTML = transactions
-      .map((txn) => {
-        const purchase =
-          txn.type === "purchase";
 
-        return `
-          <div class="transaction-item ${
-            purchase ? "purchase" : "payment"
-          }">
+    state.transactions.forEach(
+      txn => {
 
-            <div class="transaction-main">
+        const item =
+          document.createElement(
+            "div"
+          );
 
-              <strong>
-                ${
-                  purchase
-                    ? "شراء"
-                    : "تسديد"
-                }
-              </strong>
 
-              <span>
-                ${escapeHtml(
-                  formatDateTime(txn.date)
-                )}
-              </span>
+        item.className =
+          "transaction-item";
 
+
+        const isPurchase =
+          txn.type ===
+          "purchase";
+
+
+        item.innerHTML = `
+
+          <div>
+
+            <strong
+              class="${
+                isPurchase
+                  ? "txn-purchase"
+                  : "txn-payment"
+              }"
+            >
               ${
-                txn.details
-                  ? `
-                    <small>
-                      ${escapeHtml(
-                        txn.details
-                      )}
-                    </small>
-                  `
-                  : ""
+                isPurchase
+                  ? "🛒 شراء"
+                  : "💵 تسديد"
               }
+            </strong>
 
+            <div>
+              ${escapeHtml(
+                txn.details || ""
+              )}
             </div>
 
-            <div class="transaction-amount">
-
-              ${
-                purchase ? "+" : "-"
-              }${money(txn.amount)}
-
-            </div>
-
-            <button
-              class="btn btn-danger txn-delete-btn"
-              data-txn-id="${escapeHtml(txn.id)}">
-              حذف
-            </button>
+            <small>
+              ${formatDateTime(
+                txn.date
+              )}
+            </small>
 
           </div>
-        `;
-      })
-      .join("");
-  }
 
-  function openTransactionModal(type) {
-    const person = getCurrentPerson();
 
-    if (!person) {
-      alert("لم يتم تحديد الشخص");
-      return;
-    }
-
-    const title =
-      type === "purchase"
-        ? "إضافة شراء"
-        : "إضافة تسديد";
-
-    showModal(
-      title,
-      `
-        <form id="transactionForm">
-
-          <div class="form-group">
-            <label>المبلغ</label>
-
-            <input
-              id="transactionAmount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              placeholder="0">
-          </div>
-
-          <div class="form-group">
-            <label>التفاصيل</label>
-
-            <textarea
-              id="transactionDetails"
-              rows="3"
-              placeholder="ملاحظات"></textarea>
-          </div>
-
-          <button
-            type="submit"
-            class="btn ${
-              type === "purchase"
-                ? "btn-danger"
-                : "btn-success"
-            }">
+          <strong
+            class="${
+              isPurchase
+                ? "txn-purchase"
+                : "txn-payment"
+            }"
+          >
             ${
-              type === "purchase"
-                ? "حفظ الشراء"
-                : "حفظ التسديد"
+              isPurchase
+                ? "+"
+                : "-"
             }
-          </button>
 
-        </form>
-      `
+            ${formatMoney(
+              txn.amount
+            )}
+
+          </strong>
+
+        `;
+
+
+        list.appendChild(item);
+
+      }
     );
 
-    $("transactionForm").addEventListener(
+  }
+
+
+  // ============================================================
+  // ADD / EDIT PERSON
+  // ============================================================
+
+  function openPersonModal(
+    person = null
+  ) {
+
+    const isEdit =
+      !!person;
+
+
+    openModal(
+      isEdit
+        ? "تعديل بيانات الشخص"
+        : "إضافة شخص"
+    );
+
+
+    $("modalBody").innerHTML = `
+
+      <form id="personForm">
+
+        <div class="form-group">
+
+          <label>
+            اسم الشخص
+          </label>
+
+          <input
+            type="text"
+            id="personName"
+            required
+            value="${escapeAttr(
+              person?.name || ""
+            )}"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            رقم الهاتف
+          </label>
+
+          <input
+            type="text"
+            id="personPhone"
+            value="${escapeAttr(
+              person?.phone || ""
+            )}"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            التفاصيل
+          </label>
+
+          <textarea
+            id="personDetails"
+            rows="4"
+          >${escapeHtml(
+            person?.details || ""
+          )}</textarea>
+
+        </div>
+
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+        >
+          ${
+            isEdit
+              ? "حفظ التعديلات"
+              : "إضافة الشخص"
+          }
+        </button>
+
+      </form>
+
+    `;
+
+
+    $("personForm").addEventListener(
       "submit",
       async function (event) {
+
         event.preventDefault();
 
-        await createTransaction(type);
+        await savePerson(
+          person
+        );
+
       }
     );
+
   }
 
-  async function createTransaction(type) {
-    const amount = Number(
-      $("transactionAmount").value
-    );
 
-    const details =
-      $("transactionDetails").value.trim();
-
-    if (!amount || amount <= 0) {
-      alert("أدخل مبلغًا صحيحًا");
-      return;
-    }
+  async function savePerson(
+    oldPerson
+  ) {
 
     if (
-      !state.currentOfficeId ||
-      !state.currentPersonId
+      !state.currentOffice
     ) {
-      alert("لم يتم تحديد المكتب أو الشخص");
       return;
     }
 
-    const {
-      data,
-      error
-    } = await supabase
-      .from("transactions")
-      .insert({
-        office_id: state.currentOfficeId,
-        person_id: state.currentPersonId,
-        type,
-        amount,
-        details,
-        date: new Date().toISOString()
-      })
-      .select()
-      .single();
 
-    if (error) {
-      console.error(error);
+    const name =
+      $("personName")
+        .value
+        .trim();
+
+    const phone =
+      $("personPhone")
+        .value
+        .trim();
+
+    const details =
+      $("personDetails")
+        .value
+        .trim();
+
+
+    if (!name) {
 
       alert(
-        "تعذر حفظ الحركة في Supabase: " +
-          error.message
+        "اسم الشخص مطلوب."
       );
 
       return;
+
     }
 
-    closeModal();
-
-    await loadPeople();
-
-    renderCurrentPerson();
-
-    await loadTransactions(
-      state.currentPersonId
-    );
-
-    alert(
-      type === "purchase"
-        ? "تم حفظ الشراء في Supabase"
-        : "تم حفظ التسديد في Supabase"
-    );
-  }
-
-  async function deleteTransaction(txnId) {
-    const ok = confirm(
-      "هل تريد حذف هذه الحركة؟"
-    );
-
-    if (!ok) return;
-
-    const {
-      error
-    } = await supabase
-      .from("transactions")
-      .delete()
-      .eq("id", txnId)
-      .eq("office_id", state.currentOfficeId);
-
-    if (error) {
-      console.error(error);
-      alert(
-        "تعذر حذف الحركة: " +
-          error.message
-      );
-      return;
-    }
-
-    await loadPeople();
-
-    renderCurrentPerson();
-
-    await loadTransactions(
-      state.currentPersonId
-    );
-  }
-
-  // ============================================================
-  // EXPORT
-  // ============================================================
-
-  async function exportData() {
-    if (!state.currentOfficeId) return;
-
-    const {
-      data: people,
-      error: peopleError
-    } = await supabase
-      .from("people")
-      .select("*")
-      .eq("office_id", state.currentOfficeId)
-      .order("created_at", {
-        ascending: true
-      });
-
-    if (peopleError) {
-      alert(
-        "تعذر تصدير الأشخاص: " +
-          peopleError.message
-      );
-      return;
-    }
-
-    const {
-      data: transactions,
-      error: transactionsError
-    } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("office_id", state.currentOfficeId)
-      .order("date", {
-        ascending: true
-      });
-
-    if (transactionsError) {
-      alert(
-        "تعذر تصدير الحركات: " +
-          transactionsError.message
-      );
-      return;
-    }
-
-    const office = state.offices.find(
-      (item) =>
-        item.id === state.currentOfficeId
-    );
-
-    const backup = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-
-      office: office || {
-        id: state.currentOfficeId
-      },
-
-      people: people || [],
-
-      transactions: transactions || []
-    };
-
-    const blob = new Blob(
-      [
-        JSON.stringify(
-          backup,
-          null,
-          2
-        )
-      ],
-      {
-        type: "application/json"
-      }
-    );
-
-    const url =
-      URL.createObjectURL(blob);
-
-    const a =
-      document.createElement("a");
-
-    a.href = url;
-
-    a.download =
-      "debt-book-backup-" +
-      new Date()
-        .toISOString()
-        .slice(0, 10) +
-      ".json";
-
-    document.body.appendChild(a);
-
-    a.click();
-
-    a.remove();
-
-    URL.revokeObjectURL(url);
-  }
-
-  // ============================================================
-  // IMPORT
-  // ============================================================
-
-  function importData() {
-    const fileInput = $("importFile");
-
-    if (!fileInput) return;
-
-    fileInput.click();
-  }
-
-  async function handleImportFile(file) {
-    if (!file) return;
-
-    if (!state.currentOfficeId) {
-      alert("لم يتم تحديد المكتب");
-      return;
-    }
 
     try {
-      const text = await file.text();
 
-      const backup =
-        JSON.parse(text);
+      if (!oldPerson) {
 
-      if (
-        !backup ||
-        !Array.isArray(backup.people) ||
-        !Array.isArray(backup.transactions)
-      ) {
-        alert("ملف النسخة الاحتياطية غير صحيح");
-        return;
-      }
-
-      const ok = confirm(
-        "سيتم استيراد البيانات إلى المكتب الحالي.\n\nهل تريد المتابعة؟"
-      );
-
-      if (!ok) return;
-
-      const personIdMap = {};
-
-      for (const oldPerson of backup.people) {
         const {
-          data: newPerson,
           error
-        } = await supabase
+        } = await supabaseClient
           .from("people")
           .insert({
-            office_id: state.currentOfficeId,
-            name: oldPerson.name || "",
-            phone: oldPerson.phone || "",
-            details: oldPerson.details || ""
-          })
-          .select()
-          .single();
+
+            office_id:
+              state.currentOffice.id,
+
+            name,
+
+            phone,
+
+            details
+
+          });
+
 
         if (error) {
           throw error;
         }
 
-        personIdMap[oldPerson.id] =
-          newPerson.id;
-      }
 
-      for (const oldTxn of backup.transactions) {
-        const newPersonId =
-          personIdMap[
-            oldTxn.person_id
-          ];
-
-        if (!newPersonId) continue;
+      } else {
 
         const {
           error
-        } = await supabase
-          .from("transactions")
-          .insert({
-            office_id:
-              state.currentOfficeId,
+        } = await supabaseClient
+          .from("people")
+          .update({
 
-            person_id:
-              newPersonId,
+            name,
 
-            type:
-              oldTxn.type === "payment"
-                ? "payment"
-                : "purchase",
+            phone,
 
-            amount:
-              Number(oldTxn.amount),
+            details,
 
-            details:
-              oldTxn.details || "",
+            updated_at:
+              new Date()
+                .toISOString()
 
-            date:
-              oldTxn.date ||
-              new Date().toISOString()
-          });
+          })
+          .eq(
+            "id",
+            oldPerson.id
+          );
+
 
         if (error) {
           throw error;
         }
+
       }
+
+
+      closeModal();
 
       await loadPeople();
 
-      alert(
-        "تم استيراد البيانات وحفظها في Supabase"
-      );
-    } catch (error) {
-      console.error(error);
+
+      if (
+        state.currentPerson &&
+        oldPerson &&
+        state.currentPerson.id ===
+        oldPerson.id
+      ) {
+
+        state.currentPerson =
+          state.people.find(
+            x =>
+              x.id ===
+              oldPerson.id
+          );
+
+        await loadPersonTransactions();
+
+      }
+
 
       alert(
-        "تعذر استيراد النسخة: " +
-          error.message
+        "تم الحفظ بنجاح ✅"
       );
+
+
+    } catch (error) {
+
+      console.error(
+        error
+      );
+
+      alert(
+        "تعذر حفظ الشخص:\n" +
+        error.message
+      );
+
     }
+
   }
 
+
   // ============================================================
-  // EVENTS
+  // TRANSACTION
   // ============================================================
 
-  function setupEvents() {
-    // Login
-    const loginForm = $("loginForm");
+  function openTransactionModal(
+    type
+  ) {
 
-    if (loginForm) {
-      loginForm.addEventListener(
+    if (!state.currentPerson) {
+      return;
+    }
+
+
+    const isPayment =
+      type === "payment";
+
+
+    openModal(
+      isPayment
+        ? "تسجيل تسديد"
+        : "تسجيل شراء"
+    );
+
+
+    $("modalBody").innerHTML = `
+
+      <form id="transactionForm">
+
+        <div class="form-group">
+
+          <label>
+            المبلغ
+          </label>
+
+          <input
+            type="number"
+            id="transactionAmount"
+            min="0.01"
+            step="0.01"
+            required
+            placeholder="0"
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            التفاصيل
+          </label>
+
+          <textarea
+            id="transactionDetails"
+            rows="3"
+            placeholder="${
+              isPayment
+                ? "مثلاً: تسديد نقدي"
+                : "مثلاً: مواد غذائية"
+            }"
+          ></textarea>
+
+        </div>
+
+
+        <button
+          type="submit"
+          class="btn ${
+            isPayment
+              ? "btn-success"
+              : "btn-danger"
+          }"
+        >
+          ${
+            isPayment
+              ? "تسجيل التسديد"
+              : "تسجيل الشراء"
+          }
+        </button>
+
+      </form>
+
+    `;
+
+
+    $("transactionForm")
+      .addEventListener(
         "submit",
         async function (event) {
+
           event.preventDefault();
 
-          await login(
-            $("loginEmail").value,
-            $("loginPassword").value
+          await saveTransaction(
+            type
           );
+
         }
       );
-    }
 
-    // Logout
-    $("logoutBtn")?.addEventListener(
-      "click",
-      logout
-    );
-
-    $("adminLogoutBtn")?.addEventListener(
-      "click",
-      logout
-    );
-
-    // Back admin
-    $("backToAdminBtn")?.addEventListener(
-      "click",
-      backToAdmin
-    );
-
-    // Modal
-    $("modalClose")?.addEventListener(
-      "click",
-      closeModal
-    );
-
-    $("modal")?.addEventListener(
-      "click",
-      function (event) {
-        if (event.target === $("modal")) {
-          closeModal();
-        }
-      }
-    );
-
-    // Add office
-    $("addOfficeBtn")?.addEventListener(
-      "click",
-      openAddOfficeModal
-    );
-
-    // Office search
-    $("officeSearch")?.addEventListener(
-      "input",
-      renderOffices
-    );
-
-    // Add person
-    $("addPersonBtn")?.addEventListener(
-      "click",
-      openAddPersonModal
-    );
-
-    // Person search
-    $("searchInput")?.addEventListener(
-      "input",
-      function () {
-        state.searchQuery =
-          $("searchInput").value || "";
-
-        renderPeople();
-      }
-    );
-
-    // Back people
-    $("backBtn")?.addEventListener(
-      "click",
-      showPeopleView
-    );
-
-    // Payment
-    $("payBtn")?.addEventListener(
-      "click",
-      function () {
-        openTransactionModal("payment");
-      }
-    );
-
-    // Purchase
-    $("purchaseBtn")?.addEventListener(
-      "click",
-      function () {
-        openTransactionModal("purchase");
-      }
-    );
-
-    // Edit person
-    $("editPersonBtn")?.addEventListener(
-      "click",
-      function () {
-        if (state.currentPersonId) {
-          openEditPersonModal(
-            state.currentPersonId
-          );
-        }
-      }
-    );
-
-    // Export
-    $("exportBtn")?.addEventListener(
-      "click",
-      exportData
-    );
-
-    // Import
-    $("importBtn")?.addEventListener(
-      "click",
-      importData
-    );
-
-    // Import file
-    $("importFile")?.addEventListener(
-      "change",
-      async function () {
-        const file =
-          this.files?.[0];
-
-        if (file) {
-          await handleImportFile(file);
-        }
-
-        this.value = "";
-      }
-    );
-
-    // Offices delegation
-    $("officesList")?.addEventListener(
-      "click",
-      async function (event) {
-        const openBtn =
-          event.target.closest(
-            ".office-open-btn"
-          );
-
-        if (openBtn) {
-          await enterOfficeFromAdmin(
-            openBtn.dataset.officeId
-          );
-          return;
-        }
-
-        const editBtn =
-          event.target.closest(
-            ".office-edit-btn"
-          );
-
-        if (editBtn) {
-          openEditOfficeModal(
-            editBtn.dataset.officeId
-          );
-          return;
-        }
-
-        const deleteBtn =
-          event.target.closest(
-            ".office-delete-btn"
-          );
-
-        if (deleteBtn) {
-          await deleteOffice(
-            deleteBtn.dataset.officeId
-          );
-        }
-      }
-    );
-
-    // People delegation
-    $("peopleList")?.addEventListener(
-      "click",
-      async function (event) {
-        const openBtn =
-          event.target.closest(
-            ".person-open-btn"
-          );
-
-        if (openBtn) {
-          showPersonView(
-            openBtn.dataset.personId
-          );
-          return;
-        }
-
-        const editBtn =
-          event.target.closest(
-            ".person-edit-btn"
-          );
-
-        if (editBtn) {
-          openEditPersonModal(
-            editBtn.dataset.personId
-          );
-          return;
-        }
-
-        const deleteBtn =
-          event.target.closest(
-            ".person-delete-btn"
-          );
-
-        if (deleteBtn) {
-          await deletePerson(
-            deleteBtn.dataset.personId
-          );
-          return;
-        }
-
-        const item =
-          event.target.closest(
-            ".person-item"
-          );
-
-        if (
-          item &&
-          !event.target.closest("button")
-        ) {
-          showPersonView(
-            item.dataset.personId
-          );
-        }
-      }
-    );
-
-    // Transactions delegation
-    $("transactionsList")?.addEventListener(
-      "click",
-      async function (event) {
-        const deleteBtn =
-          event.target.closest(
-            ".txn-delete-btn"
-          );
-
-        if (!deleteBtn) return;
-
-        await deleteTransaction(
-          deleteBtn.dataset.txnId
-        );
-      }
-    );
   }
 
-  // ============================================================
-  // INITIALIZATION
-  // ============================================================
 
-  async function init() {
-    setupEvents();
+  async function saveTransaction(
+    type
+  ) {
 
-    // لا نستخدم localStorage إطلاقًا
+    if (
+      !state.currentPerson ||
+      !state.currentOffice
+    ) {
+      return;
+    }
 
-    hide($("adminView"));
-    hide($("appView"));
-    show($("loginView"));
 
-    await checkConnection();
+    const amount =
+      Number(
+        $("transactionAmount")
+          .value
+      );
+
+
+    const details =
+      $("transactionDetails")
+        .value
+        .trim();
+
+
+    if (
+      !amount ||
+      amount <= 0
+    ) {
+
+      alert(
+        "اكتب مبلغاً صحيحاً."
+      );
+
+      return;
+
+    }
+
+
+    // منع تسديد أكبر من الدين
+    if (type === "payment") {
+
+      const currentDebt =
+        calculateCurrentDebt();
+
+
+      if (amount > currentDebt) {
+
+        const ok =
+          confirm(
+            "المبلغ أكبر من الدين الحالي.\n\n" +
+            "الدين الحالي: " +
+            formatMoney(
+              currentDebt
+            ) +
+            "\n\nهل تريد المتابعة؟"
+          );
+
+        if (!ok) {
+          return;
+        }
+
+      }
+
+    }
+
 
     try {
+
       const {
-        data,
         error
-      } = await supabase.auth.getSession();
+      } = await supabaseClient
+        .from("transactions")
+        .insert({
+
+          office_id:
+            state.currentOffice.id,
+
+          person_id:
+            state.currentPerson.id,
+
+          type,
+
+          amount,
+
+          details,
+
+          date:
+            new Date()
+              .toISOString()
+
+        });
+
 
       if (error) {
-        console.error(error);
-        return;
+        throw error;
       }
 
-      const session =
-        data?.session;
 
-      if (!session) {
-        return;
-      }
+      closeModal();
 
-      state.user =
-        session.user;
+      await loadPersonTransactions();
 
-      const profile =
-        await loadProfile(
-          state.user.id
-        );
+      await loadPeople();
 
-      if (!profile) {
-        await supabase.auth.signOut();
-        return;
-      }
 
-      state.role =
-        profile.role;
+      // إعادة تحديد الشخص
+      state.currentPerson =
+        state.people.find(
+          x =>
+            x.id ===
+            state.currentPerson.id
+        ) ||
+        state.currentPerson;
 
-      state.currentOfficeId =
-        profile.office_id || null;
 
-      if (state.role === "admin") {
-        await enterAdmin();
-      } else if (
-        state.role === "office" &&
-        state.currentOfficeId
-      ) {
-        await enterOffice(
-          state.currentOfficeId
-        );
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
+      await loadPersonTransactions();
 
-  // ============================================================
-  // AUTH STATE
-  // ============================================================
 
-  supabase.auth.onAuthStateChange(
-    function (event, session) {
-      console.log(
-        "Supabase Auth:",
-        event
+      alert(
+        type === "payment"
+          ? "تم تسجيل التسديد ✅"
+          : "تم تسجيل الشراء ✅"
       );
 
-      if (!session) {
-        state.user = null;
+
+    } catch (error) {
+
+      console.error(
+        error
+      );
+
+      alert(
+        "تعذر حفظ الحركة:\n" +
+        error.message
+      );
+
+    }
+
+  }
+
+
+  function calculateCurrentDebt() {
+
+    let debt = 0;
+
+
+    state.transactions.forEach(
+      txn => {
+
+        if (
+          txn.type ===
+          "purchase"
+        ) {
+
+          debt +=
+            Number(
+              txn.amount
+            );
+
+        } else {
+
+          debt -=
+            Number(
+              txn.amount
+            );
+
+        }
+
       }
+    );
+
+
+    return Math.max(
+      0,
+      debt
+    );
+
+  }
+
+
+  // ============================================================
+  // VIEWS
+  // ============================================================
+
+  function showPeople() {
+
+    $("personView")
+      ?.classList
+      .add("hidden");
+
+    $("peopleView")
+      ?.classList
+      .remove("hidden");
+
+  }
+
+
+  function showLogin() {
+
+    hideAllViews();
+
+    $("loginView")
+      ?.classList
+      .remove("hidden");
+
+    setTimeout(
+      () => {
+        $("loginEmail")?.focus();
+      },
+      100
+    );
+
+  }
+
+
+  function hideAllViews() {
+
+    $("loginView")
+      ?.classList
+      .add("hidden");
+
+    $("adminView")
+      ?.classList
+      .add("hidden");
+
+    $("appView")
+      ?.classList
+      .add("hidden");
+
+  }
+
+
+  // ============================================================
+  // MODAL
+  // ============================================================
+
+  function openModal(
+    title
+  ) {
+
+    $("modalTitle").textContent =
+      title;
+
+    $("modal")
+      .classList
+      .remove("hidden");
+
+  }
+
+
+  function closeModal() {
+
+    $("modal")
+      ?.classList
+      .add("hidden");
+
+    if ($("modalBody")) {
+      $("modalBody").innerHTML = "";
+    }
+
+  }
+
+
+  // ============================================================
+  // LOGIN UI
+  // ============================================================
+
+  function showLoginMessage(
+    message,
+    type
+  ) {
+
+    const element =
+      $("loginMessage");
+
+
+    if (!element) {
+      return;
+    }
+
+
+    element.textContent =
+      message;
+
+
+    element.className =
+      "login-message";
+
+
+    if (type === "error") {
+
+      element.classList.add(
+        "login-error"
+      );
+
+    } else {
+
+      element.classList.add(
+        "login-success"
+      );
+
+    }
+
+  }
+
+
+  function clearLoginMessage() {
+
+    const element =
+      $("loginMessage");
+
+
+    if (!element) {
+      return;
+    }
+
+
+    element.textContent = "";
+
+    element.className =
+      "login-message hidden";
+
+  }
+
+
+  function setLoginLoading(
+    loading
+  ) {
+
+    const button =
+      $("loginBtn");
+
+
+    if (!button) {
+      return;
+    }
+
+
+    button.disabled =
+      loading;
+
+
+    button.textContent =
+      loading
+        ? "جارٍ الدخول..."
+        : "دخول";
+
+  }
+
+
+  // ============================================================
+  // LOADING
+  // ============================================================
+
+  function hideLoading() {
+
+    $("loadingScreen")
+      ?.classList
+      .add("hidden");
+
+  }
+
+
+  // ============================================================
+  // ERRORS
+  // ============================================================
+
+  function showGlobalError(
+    message
+  ) {
+
+    console.error(
+      message
+    );
+
+    alert(
+      message
+    );
+
+  }
+
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  function formatMoney(
+    amount
+  ) {
+
+    const number =
+      Number(
+        amount || 0
+      );
+
+
+    return (
+      new Intl.NumberFormat(
+        "ar-IQ",
+        {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+        }
+      ).format(number) +
+      " د.ع"
+    );
+
+  }
+
+
+  function formatDate(
+    value
+  ) {
+
+    if (!value) {
+      return "غير محدد";
+    }
+
+
+    try {
+
+      const date =
+        new Date(
+          value +
+          "T00:00:00"
+        );
+
+
+      return new Intl.DateTimeFormat(
+        "ar-IQ",
+        {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        }
+      ).format(date);
+
+    } catch {
+
+      return value;
+
+    }
+
+  }
+
+
+  function formatDateTime(
+    value
+  ) {
+
+    if (!value) {
+      return "";
+    }
+
+
+    try {
+
+      return new Intl.DateTimeFormat(
+        "ar-IQ",
+        {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        }
+      ).format(
+        new Date(value)
+      );
+
+    } catch {
+
+      return value;
+
+    }
+
+  }
+
+
+  function escapeHtml(
+    value
+  ) {
+
+    return String(
+      value ?? ""
+    )
+      .replace(
+        /&/g,
+        "&amp;"
+      )
+      .replace(
+        /</g,
+        "&lt;"
+      )
+      .replace(
+        />/g,
+        "&gt;"
+      )
+      .replace(
+        /"/g,
+        "&quot;"
+      )
+      .replace(
+        /'/g,
+        "&#039;"
+      );
+
+  }
+
+
+  function escapeAttr(
+    value
+  ) {
+
+    return escapeHtml(
+      value
+    );
+
+  }
+
+
+  // ============================================================
+  // منع الزوم على iPhone / iPad
+  // ============================================================
+
+  document.addEventListener(
+    "gesturestart",
+    function (event) {
+      event.preventDefault();
+    },
+    {
+      passive: false
     }
   );
 
-  // ============================================================
-  // START
-  // ============================================================
 
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      init
-    );
-  } else {
-    init();
-  }
+  document.addEventListener(
+    "gesturechange",
+    function (event) {
+      event.preventDefault();
+    },
+    {
+      passive: false
+    }
+  );
+
+
+  document.addEventListener(
+    "gestureend",
+    function (event) {
+      event.preventDefault();
+    },
+    {
+      passive: false
+    }
+  );
+
+
+  // منع double tap zoom
+  let lastTouchEnd = 0;
+
+
+  document.addEventListener(
+    "touchend",
+    function (event) {
+
+      const now =
+        Date.now();
+
+
+      if (
+        now -
+        lastTouchEnd <=
+        300
+      ) {
+
+        event.preventDefault();
+
+      }
+
+
+      lastTouchEnd =
+        now;
+
+    },
+    {
+      passive: false
+    }
+  );
+
 })();

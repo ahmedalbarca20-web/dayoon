@@ -2,18 +2,13 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-<<<<<<< HEAD
 
-  <!-- منع الزوم -->
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
   >
 
-  <meta
-    name="theme-color"
-    content="#0f172a"
-  >
+  <meta name="theme-color" content="#0f172a">
 
   <title>دفتر الديون</title>
 
@@ -25,19 +20,18 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=20">
 
   <style>
-    html {
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-      touch-action: manipulation;
-    }
-
+    html,
     body {
       margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
       touch-action: manipulation;
-      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
     }
 
     input,
@@ -48,42 +42,146 @@
       font-size: 16px;
     }
 
-    button,
-    a {
+    input,
+    textarea,
+    select {
       touch-action: manipulation;
+    }
+
+    button {
+      touch-action: manipulation;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .contract-box {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+    }
+
+    .contract-box.warning {
+      background: #fff7ed;
+      border-color: #fed7aa;
+      color: #9a3412;
+    }
+
+    .contract-box.danger {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+
+    .contract-box.success {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    .office-card {
+      position: relative;
+    }
+
+    .office-info {
+      line-height: 1.9;
+    }
+
+    .office-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .login-error {
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+
+    .login-success {
+      color: #166534;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+
+    .debt-positive {
+      color: #dc2626;
+      font-weight: 800;
+    }
+
+    .debt-zero {
+      color: #16a34a;
+      font-weight: 800;
+    }
+
+    .txn-purchase {
+      color: #dc2626;
+    }
+
+    .txn-payment {
+      color: #16a34a;
+    }
+
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #0f172a;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .loading-screen.hidden {
+      display: none;
     }
   </style>
 </head>
 
 <body>
 
+  <div id="loadingScreen" class="loading-screen">
+    جارٍ تحميل دفتر الديون...
+  </div>
+
   <!-- ======================================================
-       صفحة الدخول
+       تسجيل الدخول
   ======================================================= -->
 
   <div id="loginView" class="login-view hidden">
 
     <div class="login-card">
 
-=======
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>دفتر الديون</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7">
-</head>
-<body>
-
-  <!-- صفحة الدخول -->
-  <div id="loginView" class="login-view hidden">
-    <div class="login-card">
->>>>>>> 9f9d839f3be7f6757438c6c909259fb1e74282d4
       <div class="login-logo">
         <span class="logo-icon">📒</span>
         <h1>دفتر الديون</h1>
       </div>
-<<<<<<< HEAD
 
       <p class="login-subtitle">
         سجّل دخولك للمتابعة
@@ -99,13 +197,13 @@
         <div class="form-group">
 
           <label for="loginEmail">
-            البريد الإلكتروني
+            البريد الإلكتروني / اسم المستخدم
           </label>
 
           <input
-            type="email"
+            type="text"
             id="loginEmail"
-            placeholder="example@email.com"
+            placeholder="البريد الإلكتروني أو اسم المستخدم"
             autocomplete="username"
             required
           >
@@ -121,7 +219,7 @@
           <input
             type="password"
             id="loginPassword"
-            placeholder="••••••••"
+            placeholder="كلمة المرور"
             autocomplete="current-password"
             required
           >
@@ -147,6 +245,7 @@
         class="conn-status"
         id="connStatus"
       >
+
         <span
           class="conn-dot"
           id="connDot"
@@ -155,6 +254,7 @@
         <span id="connText">
           جارٍ الفحص...
         </span>
+
       </div>
 
     </div>
@@ -234,7 +334,7 @@
         <div class="search-box">
 
           <input
-            type="search"
+            type="text"
             id="officeSearch"
             placeholder="ابحث عن مكتب..."
           >
@@ -250,21 +350,21 @@
 
       </div>
 
-
       <div
         id="officesList"
         class="people-list"
       ></div>
 
-
       <div
         id="officesEmpty"
         class="empty-state hidden"
       >
+
         <p>
           لا يوجد مكاتب بعد.
-          اضغط "إضافة مكتب" لإنشاء أول مكتب.
+          اضغط "إضافة مكتب" لإنشاء أول بروفايل.
         </p>
+
       </div>
 
     </main>
@@ -305,7 +405,6 @@
 
         </div>
 
-
         <div class="header-actions">
 
           <div class="header-stats">
@@ -325,7 +424,6 @@
 
             </div>
 
-
             <div class="stat-box">
 
               <span class="stat-label">
@@ -343,14 +441,12 @@
 
           </div>
 
-
           <button
             class="btn btn-ghost hidden"
             id="backToAdminBtn"
           >
             → لوحة الإدارة
           </button>
-
 
           <button
             class="btn btn-logout"
@@ -390,21 +486,12 @@
           <div class="search-box">
 
             <input
-              type="search"
+              type="text"
               id="searchInput"
               placeholder="ابحث بالاسم أو رقم الهاتف..."
             >
 
           </div>
-
-
-          <button
-            class="btn btn-ghost"
-            id="exportBtn"
-          >
-            ⬇ تصدير نسخة
-          </button>
-
 
           <button
             class="btn btn-primary"
@@ -426,10 +513,12 @@
           id="emptyState"
           class="empty-state hidden"
         >
+
           <p>
             لا يوجد أشخاص بعد.
             اضغط "إضافة شخص" للبدء.
           </p>
+
         </div>
 
       </section>
@@ -513,7 +602,7 @@
 
 
   <!-- ======================================================
-       النافذة المنبثقة
+       Modal
   ======================================================= -->
 
   <div
@@ -548,161 +637,15 @@
   </div>
 
 
-  <!-- Supabase -->
+  <!-- ======================================================
+       Supabase
+  ======================================================= -->
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- إعدادات Supabase -->
+  <script src="supabase-config.js?v=20"></script>
 
-  <script src="supabase-config.js"></script>
-
-  <!-- التطبيق -->
-
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=20"></script>
 
 </body>
 </html>
-=======
-      <p class="login-subtitle">سجّل دخولك للمتابعة</p>
-
-      <div id="loginMessage" class="login-message hidden"></div>
-
-      <form id="loginForm">
-        <div class="form-group">
-          <label>البريد الإلكتروني / اسم المستخدم</label>
-          <input type="text" id="loginEmail" placeholder="admin" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label>كلمة المرور</label>
-          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
-        </div>
-        <button type="submit" class="btn btn-primary login-btn" id="loginBtn">دخول</button>
-      </form>
-
-      <p class="login-hint" id="loginHint"></p>
-      <div class="conn-status" id="connStatus">
-        <span class="conn-dot" id="connDot"></span>
-        <span id="connText">جارٍ الفحص...</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- لوحة إدارة الأدمن -->
-  <div id="adminView" class="hidden">
-    <header class="app-header">
-      <div class="container header-inner">
-        <div class="logo">
-          <span class="logo-icon">⚙️</span>
-          <div>
-            <h1>لوحة الإدارة</h1>
-            <span class="subtitle">إدارة المكاتب والبروفايلات</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <div class="header-stats">
-            <div class="stat-box">
-              <span class="stat-label">عدد المكاتب</span>
-              <span class="stat-value" id="officesCount">0</span>
-            </div>
-          </div>
-          <button class="btn btn-logout" id="adminLogoutBtn">خروج</button>
-        </div>
-      </div>
-    </header>
-
-    <main class="container">
-      <div class="toolbar">
-        <div class="search-box">
-          <input type="text" id="officeSearch" placeholder="ابحث عن مكتب...">
-        </div>
-        <button class="btn btn-primary" id="addOfficeBtn">+ إضافة مكتب</button>
-      </div>
-
-      <div id="officesList" class="people-list"></div>
-      <div id="officesEmpty" class="empty-state hidden">
-        <p>لا يوجد مكاتب بعد. اضغط "إضافة مكتب" لإنشاء أول بروفايل.</p>
-      </div>
-    </main>
-  </div>
-
-  <!-- التطبيق (صفحة المكتب) -->
-  <div id="appView" class="hidden">
-    <header class="app-header">
-      <div class="container header-inner">
-        <div class="logo">
-          <span class="logo-icon">📒</span>
-          <div>
-            <h1 id="appTitle">دفتر الديون</h1>
-            <span class="subtitle" id="appSubtitle">إدارة الديون بسهولة</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <div class="header-stats">
-            <div class="stat-box">
-              <span class="stat-label">إجمالي المستحق</span>
-              <span class="stat-value" id="totalDebt">0</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">عدد الأشخاص</span>
-              <span class="stat-value" id="peopleCount">0</span>
-            </div>
-          </div>
-          <button class="btn btn-ghost hidden" id="backToAdminBtn">→ لوحة الإدارة</button>
-          <button class="btn btn-logout" id="logoutBtn">خروج</button>
-        </div>
-      </div>
-      <div class="container">
-        <div id="contractBanner" class="contract-banner hidden"></div>
-      </div>
-    </header>
-
-    <main class="container">
-      <section id="peopleView" class="view">
-        <div class="toolbar">
-          <div class="search-box">
-            <input type="text" id="searchInput" placeholder="ابحث بالاسم أو رقم الهاتف...">
-          </div>
-          <button class="btn btn-ghost" id="exportBtn" title="تنزيل نسخة احتياطية من البيانات">⬇ تصدير نسخة</button>
-          <button class="btn btn-ghost" id="importBtn" title="استعادة البيانات من نسخة احتياطية">⬆ استيراد نسخة</button>
-          <button class="btn btn-primary" id="addPersonBtn">+ إضافة شخص</button>
-        </div>
-        <input type="file" id="importFile" accept=".json" class="hidden">
-
-        <div id="peopleList" class="people-list"></div>
-        <div id="emptyState" class="empty-state hidden">
-          <p>لا يوجد أشخاص بعد. اضغط "إضافة شخص" للبدء.</p>
-        </div>
-      </section>
-
-      <section id="personView" class="view hidden">
-        <div class="person-header">
-          <button class="btn btn-ghost" id="backBtn">→ الرجوع للقائمة</button>
-        </div>
-        <div class="person-card" id="personCard"></div>
-        <div class="actions-bar">
-          <button class="btn btn-success" id="payBtn">تسديد</button>
-          <button class="btn btn-danger" id="purchaseBtn">شراء مباشر</button>
-          <button class="btn btn-edit" id="editPersonBtn">تعديل بيانات الشخص</button>
-        </div>
-        <h2 class="section-title">سجل الحركات <span class="count-badge" id="txnCount">0</span></h2>
-        <div id="transactionsList" class="transactions-list"></div>
-      </section>
-    </main>
-  </div>
-
-  <div id="modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="modalTitle">عنوان</h3>
-        <button class="modal-close" id="modalClose">✕</button>
-      </div>
-      <div class="modal-body" id="modalBody"></div>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script>
-  <script src="app.js?v=8"></script>
-</body>
-</html>
->>>>>>> 9f9d839f3be7f6757438c6c909259fb1e74282d4
