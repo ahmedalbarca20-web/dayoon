@@ -1,447 +1,433 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
   <title>دفتر الديون</title>
 
-  <link rel="stylesheet" href="style.css">
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script>
 </head>
 
 <body>
 
-<div id="loadingScreen" class="loading-screen">
-  <div class="loader"></div>
-  <div>جارٍ تحميل دفتر الديون...</div>
-</div>
+  <!-- ========================================= -->
+  <!-- LOADING -->
+  <!-- ========================================= -->
+
+  <div
+    id="loadingScreen"
+    class="loading-screen"
+  >
+    جارٍ تحميل دفتر الديون...
+  </div>
 
 
-<!-- =====================================================
-     LOGIN
-===================================================== -->
+  <!-- ========================================= -->
+  <!-- LOGIN -->
+  <!-- ========================================= -->
 
-<section id="loginScreen" class="screen hidden">
+  <section
+    id="loginPage"
+    class="page"
+  >
 
-  <div class="login-card">
+    <div class="login-box">
 
-    <div class="logo">
-      <div class="logo-icon">₿</div>
-      <h1>دفتر الديون</h1>
-      <p>نظام إدارة الديون</p>
-    </div>
+      <h1>
+        دفتر الديون
+      </h1>
 
-    <form id="loginForm">
-
-      <label>البريد الإلكتروني</label>
-
-      <input
-        id="loginEmail"
-        type="email"
-        autocomplete="username"
-        placeholder="example@email.com"
-        required
-      >
-
-      <label>كلمة المرور</label>
-
-      <input
-        id="loginPassword"
-        type="password"
-        autocomplete="current-password"
-        placeholder="••••••••"
-        required
-      >
-
-      <button
-        id="loginButton"
-        type="submit"
-        class="primary-button"
-      >
+      <p>
         تسجيل الدخول
-      </button>
+      </p>
 
-      <div id="loginMessage"></div>
+      <form id="loginForm">
 
-    </form>
+        <label>
+          البريد الإلكتروني
+        </label>
 
-  </div>
+        <input
+          id="email"
+          type="email"
+          autocomplete="username"
+          required
+        >
 
-</section>
+        <label>
+          كلمة المرور
+        </label>
 
+        <input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        >
 
-<!-- =====================================================
-     ADMIN
-===================================================== -->
+        <button
+          type="submit"
+        >
+          تسجيل الدخول
+        </button>
 
-<section id="adminScreen" class="screen hidden">
+      </form>
 
-  <header class="topbar">
+      <div
+        id="loginMessage"
+        class="login-message"
+      ></div>
 
-    <div>
-      <h2>لوحة الإدارة</h2>
-      <span id="adminEmail"></span>
     </div>
 
-    <button id="adminLogout" class="logout-button">
-      تسجيل الخروج
-    </button>
-
-  </header>
+  </section>
 
 
-  <main class="container">
+  <!-- ========================================= -->
+  <!-- ADMIN -->
+  <!-- ========================================= -->
 
-    <div class="page-title">
+  <section
+    id="adminPage"
+    class="page hidden"
+  >
+
+    <header class="topbar">
 
       <div>
-        <h1>المكاتب</h1>
-        <p>إدارة حسابات المكاتب ومدة العقود</p>
+        <h1>
+          لوحة تحكم الأدمن
+        </h1>
+
+        <p>
+          إدارة المكاتب والحسابات
+        </p>
       </div>
 
       <button
-        id="openOfficeModal"
-        class="primary-button"
+        type="button"
+        data-action="logout"
       >
-        + إضافة مكتب
+        تسجيل الخروج
       </button>
 
-    </div>
+    </header>
 
 
-    <div id="adminMessage"></div>
+    <main class="container">
 
-    <div class="stats">
+      <!-- CREATE OFFICE -->
 
-      <div class="stat-card">
-        <span>عدد المكاتب</span>
-        <strong id="totalOffices">0</strong>
+      <div class="panel">
+
+        <h2>
+          إنشاء حساب مكتب
+        </h2>
+
+        <p>
+          يتم إنشاء حساب المكتب من الأدمن فقط.
+        </p>
+
+        <form
+          id="createOfficeForm"
+          class="form-grid"
+        >
+
+          <div>
+
+            <label>
+              اسم المكتب
+            </label>
+
+            <input
+              id="officeNameInput"
+              type="text"
+              required
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>
+              البريد الإلكتروني
+            </label>
+
+            <input
+              id="officeEmailInput"
+              type="email"
+              required
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>
+              كلمة المرور
+            </label>
+
+            <input
+              id="officePasswordInput"
+              type="password"
+              minlength="6"
+              required
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>
+              بداية العقد
+            </label>
+
+            <input
+              id="officeContractStart"
+              type="date"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>
+              نهاية العقد
+            </label>
+
+            <input
+              id="officeContractEnd"
+              type="date"
+            >
+
+          </div>
+
+
+          <div class="full">
+
+            <button
+              type="submit"
+            >
+              إنشاء حساب المكتب
+            </button>
+
+          </div>
+
+        </form>
+
       </div>
 
-      <div class="stat-card">
-        <span>المكاتب الفعالة</span>
-        <strong id="activeOffices">0</strong>
-      </div>
 
-      <div class="stat-card">
-        <span>المكاتب المعطلة</span>
-        <strong id="inactiveOffices">0</strong>
-      </div>
+      <!-- OFFICES -->
 
-    </div>
+      <div class="panel">
 
+        <h2>
+          المكاتب
+        </h2>
 
-    <div class="table-card">
-
-      <div class="table-header">
-        <h3>قائمة المكاتب</h3>
-      </div>
-
-      <div class="table-wrapper">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>المكتب</th>
-              <th>الإيميل</th>
-              <th>بداية العقد</th>
-              <th>نهاية العقد</th>
-              <th>الحالة</th>
-              <th>الإجراء</th>
-            </tr>
-          </thead>
-
-          <tbody id="officesTable"></tbody>
-
-        </table>
+        <div
+          id="officesList"
+          class="cards"
+        ></div>
 
       </div>
 
-    </div>
+    </main>
 
-  </main>
-
-</section>
+  </section>
 
 
-<!-- =====================================================
-     OFFICE
-===================================================== -->
+  <!-- ========================================= -->
+  <!-- OFFICE -->
+  <!-- ========================================= -->
 
-<section id="officeScreen" class="screen hidden">
+  <section
+    id="officePage"
+    class="page hidden"
+  >
 
-  <header class="topbar">
-
-    <div>
-      <h2 id="officeTitle">دفتر الديون</h2>
-      <span id="officeEmail"></span>
-    </div>
-
-    <button id="officeLogout" class="logout-button">
-      تسجيل الخروج
-    </button>
-
-  </header>
-
-
-  <main class="container">
-
-    <div class="page-title">
+    <header class="topbar">
 
       <div>
-        <h1>الزبائن</h1>
-        <p id="contractStatus"></p>
+
+        <h1>
+          دفتر الديون
+        </h1>
+
+        <p>
+          <span id="officeName">
+            المكتب
+          </span>
+        </p>
+
       </div>
 
       <button
-        id="addPersonButton"
-        class="primary-button"
+        type="button"
+        data-action="logout"
       >
-        + إضافة زبون
+        تسجيل الخروج
       </button>
 
-    </div>
+    </header>
 
 
-    <div class="stats">
+    <main class="container">
 
-      <div class="stat-card">
-        <span>عدد الزبائن</span>
-        <strong id="peopleCount">0</strong>
-      </div>
+      <div class="panel">
 
-      <div class="stat-card">
-        <span>إجمالي الديون</span>
-        <strong id="totalDebt">0</strong>
-      </div>
+        <h2>
+          <span id="currentOfficeName">
+            المكتب
+          </span>
+        </h2>
 
-      <div class="stat-card">
-        <span>المبلغ المدفوع</span>
-        <strong id="totalPaid">0</strong>
-      </div>
-
-    </div>
-
-
-    <div class="search-box">
-
-      <input
-        id="searchPeople"
-        type="search"
-        placeholder="ابحث عن زبون..."
-      >
-
-    </div>
-
-
-    <div class="table-card">
-
-      <div class="table-wrapper">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>الاسم</th>
-              <th>الهاتف</th>
-              <th>العنوان</th>
-              <th>الدين</th>
-              <th>المدفوع</th>
-              <th>المتبقي</th>
-              <th>الإجراء</th>
-            </tr>
-          </thead>
-
-          <tbody id="peopleTable"></tbody>
-
-        </table>
-
-      </div>
-
-    </div>
-
-  </main>
-
-</section>
-
-
-<!-- =====================================================
-     OFFICE MODAL
-===================================================== -->
-
-<div
-  id="officeModal"
-  class="modal hidden"
->
-
-  <div class="modal-card">
-
-    <div class="modal-header">
-
-      <h2>إضافة مكتب جديد</h2>
-
-      <button
-        id="closeOfficeModal"
-        class="close-button"
-      >
-        ×
-      </button>
-
-    </div>
-
-
-    <form id="officeForm">
-
-      <label>اسم المكتب</label>
-
-      <input
-        id="officeName"
-        required
-        placeholder="مثال: مكتب أحمد"
-      >
-
-
-      <label>إيميل الدخول</label>
-
-      <input
-        id="officeEmail"
-        type="email"
-        required
-        placeholder="office@email.com"
-      >
-
-
-      <label>كلمة المرور</label>
-
-      <input
-        id="officePassword"
-        type="password"
-        minlength="6"
-        required
-        placeholder="6 أحرف على الأقل"
-      >
-
-
-      <div class="form-row">
-
-        <div>
-          <label>بداية العقد</label>
-
-          <input
-            id="contractStart"
-            type="date"
-          >
-        </div>
-
-        <div>
-          <label>نهاية العقد</label>
-
-          <input
-            id="contractEnd"
-            type="date"
-          >
-        </div>
+        <p>
+          بيانات هذا المكتب معزولة عن باقي المكاتب.
+        </p>
 
       </div>
 
 
-      <div id="officeFormMessage"></div>
+      <!-- ADD PERSON -->
+
+      <div class="panel">
+
+        <h2>
+          إضافة شخص
+        </h2>
+
+        <form
+          id="personForm"
+          class="form-grid"
+        >
+
+          <div>
+
+            <label>
+              الاسم
+            </label>
+
+            <input
+              id="personNameInput"
+              type="text"
+              required
+            >
+
+          </div>
 
 
-      <button
-        type="submit"
-        id="saveOfficeButton"
-        class="primary-button full"
-      >
-        إنشاء المكتب
-      </button>
+          <div>
 
-    </form>
+            <label>
+              رقم الهاتف
+            </label>
 
-  </div>
+            <input
+              id="personPhoneInput"
+              type="text"
+            >
 
-</div>
-
-
-<!-- =====================================================
-     PERSON MODAL
-===================================================== -->
-
-<div
-  id="personModal"
-  class="modal hidden"
->
-
-  <div class="modal-card">
-
-    <div class="modal-header">
-
-      <h2>إضافة زبون</h2>
-
-      <button
-        id="closePersonModal"
-        class="close-button"
-      >
-        ×
-      </button>
-
-    </div>
+          </div>
 
 
-    <form id="personForm">
+          <div>
 
-      <label>اسم الزبون</label>
+            <label>
+              المبلغ
+            </label>
 
-      <input
-        id="personName"
-        required
-        placeholder="اسم الزبون"
-      >
+            <input
+              id="personAmountInput"
+              type="number"
+              step="0.01"
+              value="0"
+            >
 
-
-      <label>رقم الهاتف</label>
-
-      <input
-        id="personPhone"
-        placeholder="رقم الهاتف"
-      >
+          </div>
 
 
-      <label>العنوان</label>
+          <div>
 
-      <input
-        id="personAddress"
-        placeholder="العنوان"
-      >
+            <label>
+              ملاحظات
+            </label>
 
+            <input
+              id="personNotesInput"
+              type="text"
+            >
 
-      <label>ملاحظات</label>
-
-      <textarea
-        id="personNotes"
-        placeholder="ملاحظات"
-      ></textarea>
+          </div>
 
 
-      <button
-        type="submit"
-        class="primary-button full"
-      >
-        حفظ الزبون
-      </button>
+          <div class="full">
 
-    </form>
+            <button
+              type="submit"
+            >
+              إضافة
+            </button>
 
-  </div>
+          </div>
 
-</div>
+        </form>
+
+      </div>
 
 
-<script src="app.js"></script>
+      <!-- PEOPLE -->
+
+      <div class="panel">
+
+        <h2>
+          الأشخاص
+        </h2>
+
+        <div
+          id="peopleList"
+          class="cards"
+        ></div>
+
+      </div>
+
+    </main>
+
+  </section>
+
+
+  <!-- ========================================= -->
+  <!-- SUPABASE -->
+  <!-- ========================================= -->
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  ></script>
+
+  <script
+    src="supabase-config.js"
+  ></script>
+
+  <script
+    src="app.js"
+  ></script>
 
 </body>
+
 </html>

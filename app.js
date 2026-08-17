@@ -1,23 +1,14 @@
 (function () {
   "use strict";
 
-  // =========================================================
-  // DEBT BOOK - APP.JS
-  // =========================================================
-
-  console.log("Starting Debt Book...");
-
-  // =========================================================
-  // SUPABASE CONFIG
-  // =========================================================
+  // =====================================================
+  // SUPABASE
+  // =====================================================
 
   const CFG = window.SUPABASE_CONFIG || {};
 
-  const SUPABASE_URL =
-    CFG.SUPABASE_URL || "";
-
-  const SUPABASE_ANON_KEY =
-    CFG.SUPABASE_ANON_KEY || "";
+  const SUPABASE_URL = CFG.SUPABASE_URL || "";
+  const SUPABASE_ANON_KEY = CFG.SUPABASE_ANON_KEY || "";
 
   let supabaseClient = null;
 
@@ -26,35 +17,24 @@
     !SUPABASE_URL ||
     !SUPABASE_ANON_KEY
   ) {
-    console.error(
-      "Supabase configuration missing"
-    );
+    console.error("Supabase configuration missing");
 
-    document.addEventListener(
-      "DOMContentLoaded",
-      function () {
-        const loading =
-          document.getElementById(
-            "loadingScreen"
-          );
+    document.addEventListener("DOMContentLoaded", () => {
+      const loading = document.getElementById("loadingScreen");
 
-        if (loading) {
-          loading.classList.add("hidden");
-        }
-
-        const msg =
-          document.getElementById(
-            "loginMessage"
-          );
-
-        if (msg) {
-          msg.textContent =
-            "خطأ في إعدادات Supabase. تأكد من ملف supabase-config.js";
-          msg.className =
-            "login-message error";
-        }
+      if (loading) {
+        loading.classList.add("hidden");
       }
-    );
+
+      const message =
+        document.getElementById("loginMessage");
+
+      if (message) {
+        message.textContent =
+          "إعدادات Supabase غير موجودة.";
+        message.className = "login-message error";
+      }
+    });
 
     return;
   }
@@ -73,93 +53,75 @@
         }
       );
 
-    console.log(
-      "Supabase connected"
-    );
+    console.log("Supabase connected");
   } catch (error) {
     console.error(
-      "Supabase client error:",
+      "Supabase initialization error:",
       error
     );
+
     return;
   }
 
-  // =========================================================
+  // =====================================================
   // STATE
-  // =========================================================
+  // =====================================================
 
   const state = {
     user: null,
-
     role: null,
-
     office: null,
 
     offices: [],
-
     people: [],
-
     transactions: [],
 
     currentPersonId: null,
 
-    searchQuery: "",
-
     initialized: false
   };
 
-  // =========================================================
-  // DOM HELPERS
-  // =========================================================
+  // =====================================================
+  // HELPERS
+  // =====================================================
 
-  function $(id) {
-    return document.getElementById(id);
-  }
+  const $ = id =>
+    document.getElementById(id);
 
   function show(id) {
     const el = $(id);
-
-    if (el) {
-      el.classList.remove("hidden");
-    }
+    if (el) el.classList.remove("hidden");
   }
 
   function hide(id) {
     const el = $(id);
+    if (el) el.classList.add("hidden");
+  }
+
+  function finishLoading() {
+    const el = $("loadingScreen");
 
     if (el) {
       el.classList.add("hidden");
     }
   }
 
-  function text(id, value) {
-    const el = $(id);
+  function message(text, type = "info") {
+    console.log(`[${type}] ${text}`);
+
+    const el = $("loginMessage");
 
     if (el) {
-      el.textContent =
-        value == null ? "" : value;
+      el.textContent = text;
+      el.className =
+        `login-message ${type}`;
+    } else {
+      alert(text);
     }
   }
 
-  function value(id) {
-    const el = $(id);
-
-    return el
-      ? String(el.value || "").trim()
-      : "";
-  }
-
-  function setValue(id, val) {
-    const el = $(id);
-
-    if (el) {
-      el.value =
-        val == null ? "" : val;
-    }
-  }
-
-  function escapeHtml(str) {
-    return String(str ?? "")
+  function escapeHTML(value) {
+    return String(value ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -167,160 +129,103 @@
       .replace(/'/g, "&#039;");
   }
 
-  function notify(message, type) {
-    console.log(
-      `[${type || "info"}]`,
-      message
-    );
-
-    alert(message);
-  }
-
-  // =========================================================
-  // LOADING
-  // =========================================================
-
-  function finishLoading() {
-    const loading =
-      $("loadingScreen");
-
-    if (loading) {
-      loading.classList.add(
-        "hidden"
-      );
-    }
-  }
-
-  // =========================================================
-  // AUTH
-  // =========================================================
+  // =====================================================
+  // SESSION
+  // =====================================================
 
   async function getSession() {
-    try {
-      const {
-        data,
-        error
-      } =
-        await supabaseClient.auth
-          .getSession();
+    const {
+      data,
+      error
+    } = await supabaseClient.auth.getSession();
 
-      if (error) {
-        console.error(
-          "Get session:",
-          error
-        );
-
-        return null;
-      }
-
-      return data.session || null;
-
-    } catch (error) {
+    if (error) {
       console.error(
-        "Session error:",
+        "Get session:",
         error
       );
 
       return null;
     }
+
+    return data?.session || null;
   }
 
-  // =========================================================
-  // CHECK ADMIN
-  // =========================================================
+  // =====================================================
+  // ADMIN CHECK
+  // =====================================================
 
-  async function checkAdmin(userId) {
+  async function isAdmin(userId) {
     if (!userId) {
       return false;
     }
 
-    try {
-      const {
-        data,
-        error
-      } =
-        await supabaseClient
-          .from("admins")
-          .select("user_id")
-          .eq(
-            "user_id",
-            userId
-          )
-          .maybeSingle();
+    const {
+      data,
+      error
+    } = await supabaseClient
+      .from("admins")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-      if (error) {
-        console.error(
-          "Check admin:",
-          error
-        );
-
-        return false;
-      }
-
-      return !!data;
-
-    } catch (error) {
+    if (error) {
       console.error(
-        "Check admin exception:",
+        "Check admin:",
         error
       );
 
       return false;
     }
+
+    return !!data;
   }
 
-  // =========================================================
+  // =====================================================
   // GET OFFICE
-  // =========================================================
+  // =====================================================
 
-  async function getOffice(userId) {
+  async function getMyOffice(userId) {
     if (!userId) {
       return null;
     }
 
-    try {
-      const {
-        data,
-        error
-      } =
-        await supabaseClient
-          .from("offices")
-          .select("*")
-          .eq(
-            "user_id",
-            userId
-          )
-          .maybeSingle();
+    const {
+      data,
+      error
+    } = await supabaseClient
+      .from("offices")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-      if (error) {
-        console.error(
-          "Get office:",
-          error
-        );
-
-        return null;
-      }
-
-      return data || null;
-
-    } catch (error) {
+    if (error) {
       console.error(
-        "Get office exception:",
+        "Get office:",
         error
       );
 
       return null;
     }
+
+    return data;
   }
 
-  // =========================================================
+  // =====================================================
   // LOGIN
-  // =========================================================
+  // =====================================================
 
-  async function handleLogin(
-    email,
-    password
-  ) {
+  async function login(email, password) {
+
+    if (!supabaseClient) {
+      message(
+        "Supabase غير متصل.",
+        "error"
+      );
+
+      return;
+    }
+
     email =
       String(email || "")
         .trim()
@@ -330,184 +235,155 @@
       String(password || "");
 
     if (!email || !password) {
-      notify(
-        "أدخل البريد الإلكتروني وكلمة المرور.",
+      message(
+        "أدخل البريد وكلمة المرور.",
         "error"
       );
 
       return;
     }
 
-    try {
-      console.log(
-        "Trying login:",
-        email
-      );
+    console.log(
+      "Login:",
+      email
+    );
 
-      const {
-        data,
-        error
-      } =
-        await supabaseClient.auth
-          .signInWithPassword({
-            email,
-            password
-          });
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.auth
+        .signInWithPassword({
+          email,
+          password
+        });
 
-      if (error) {
-        console.error(
-          "Auth login failed:",
-          error
-        );
-
-        notify(
-          "بيانات الدخول غير صحيحة.",
-          "error"
-        );
-
-        return;
-      }
-
-      if (!data || !data.user) {
-        notify(
-          "تعذر إنشاء جلسة الدخول.",
-          "error"
-        );
-
-        return;
-      }
-
-      state.user =
-        data.user;
-
-      console.log(
-        "SIGNED_IN:",
-        state.user.email
-      );
-
-      await loadUserProfile();
-
-    } catch (error) {
+    if (error) {
       console.error(
-        "Login:",
+        "Auth login failed:",
         error
       );
 
-      notify(
-        "حدث خطأ أثناء تسجيل الدخول.",
+      message(
+        "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
         "error"
       );
+
+      return;
     }
+
+    state.user =
+      data.user;
+
+    await loadUser();
   }
 
-  // =========================================================
-  // LOAD USER PROFILE
-  // =========================================================
+  // =====================================================
+  // LOAD USER
+  // =====================================================
 
-  async function loadUserProfile() {
+  async function loadUser() {
+
     if (!state.user) {
       return;
     }
 
-    // -------------------------
-    // ADMIN
-    // -------------------------
+    console.log(
+      "Loading user:",
+      state.user.id
+    );
 
-    const isAdmin =
-      await checkAdmin(
+    // ---------------------------------------------------
+    // ADMIN
+    // ---------------------------------------------------
+
+    const admin =
+      await isAdmin(
         state.user.id
       );
 
-    if (isAdmin) {
+    if (admin) {
 
-      state.role =
-        "admin";
-
-      state.office =
-        null;
+      state.role = "admin";
+      state.office = null;
 
       console.log(
-        "Logged as ADMIN"
+        "User role: ADMIN"
       );
 
-      await loadAdminPage();
+      await showAdmin();
 
       return;
     }
 
-    // -------------------------
+    // ---------------------------------------------------
     // OFFICE
-    // -------------------------
+    // ---------------------------------------------------
 
     const office =
-      await getOffice(
+      await getMyOffice(
         state.user.id
       );
 
     if (!office) {
 
       console.error(
-        "No office profile found."
+        "No office profile"
       );
 
-      await supabaseClient.auth
-        .signOut();
+      await supabaseClient.auth.signOut();
 
-      notify(
-        "هذا الحساب غير مرتبط بمكتب.",
+      message(
+        "هذا الحساب غير مرتبط بأي مكتب.",
         "error"
       );
 
       return;
     }
 
-    // -------------------------
-    // CHECK ACTIVE
-    // -------------------------
+    // ---------------------------------------------------
+    // ACTIVE
+    // ---------------------------------------------------
 
-    if (
-      office.active === false
-    ) {
+    if (office.active === false) {
 
-      await supabaseClient.auth
-        .signOut();
+      await supabaseClient.auth.signOut();
 
-      notify(
-        "هذا المكتب معطل من قبل الأدمن.",
+      message(
+        "هذا المكتب معطل من الأدمن.",
         "error"
       );
 
       return;
     }
 
-    // -------------------------
-    // CHECK CONTRACT
-    // -------------------------
+    // ---------------------------------------------------
+    // CONTRACT
+    // ---------------------------------------------------
 
-    if (
-      office.contract_end
-    ) {
+    if (office.contract_end) {
 
       const end =
         new Date(
           office.contract_end
         );
 
-      const now =
+      const today =
         new Date();
 
+      today.setHours(
+        0, 0, 0, 0
+      );
+
       if (
-        !Number.isNaN(
-          end.getTime()
-        ) &&
-        end < now
+        !Number.isNaN(end.getTime()) &&
+        end < today
       ) {
 
-        await supabaseClient.auth
-          .signOut();
+        await supabaseClient.auth.signOut();
 
-        notify(
-          "مدة عقد هذا المكتب انتهت.",
+        message(
+          "مدة عقد المكتب انتهت.",
           "error"
         );
 
@@ -522,121 +398,117 @@
       office;
 
     console.log(
-      "Logged as OFFICE:",
-      office.id
+      "User role: OFFICE",
+      office.name
     );
 
-    await loadOfficePage();
+    await showOffice();
   }
 
-  // =========================================================
-  // ADMIN PAGE
-  // =========================================================
+  // =====================================================
+  // SHOW LOGIN
+  // =====================================================
 
-  async function loadAdminPage() {
-
-    hide("loginPage");
-    hide("loginScreen");
-
-    show("adminPage");
-    show("adminDashboard");
-    hide("officePage");
-    hide("officeDashboard");
-
-    text(
-      "currentUser",
-      state.user?.email || "Admin"
-    );
-
-    await loadOffices();
-  }
-
-  // =========================================================
-  // OFFICE PAGE
-  // =========================================================
-
-  async function loadOfficePage() {
-
-    hide("loginPage");
-    hide("loginScreen");
+  function showLogin() {
 
     hide("adminPage");
-    hide("adminDashboard");
+    hide("officePage");
 
-    show("officePage");
-    show("officeDashboard");
+    show("loginPage");
 
-    text(
-      "officeName",
-      state.office?.name ||
-      state.office?.office_name ||
-      "المكتب"
-    );
-
-    text(
-      "currentOfficeName",
-      state.office?.name ||
-      state.office?.office_name ||
-      "المكتب"
-    );
-
-    await loadPeople();
+    finishLoading();
   }
 
-  // =========================================================
-  // LOAD OFFICES - ADMIN ONLY
-  // =========================================================
+  // =====================================================
+  // SHOW ADMIN
+  // =====================================================
+
+  async function showAdmin() {
+
+    hide("loginPage");
+    hide("officePage");
+
+    show("adminPage");
+
+    await loadOffices();
+
+    finishLoading();
+  }
+
+  // =====================================================
+  // SHOW OFFICE
+  // =====================================================
+
+  async function showOffice() {
+
+    hide("loginPage");
+    hide("adminPage");
+
+    show("officePage");
+
+    const name =
+      state.office?.name ||
+      "المكتب";
+
+    const officeName =
+      $("officeName");
+
+    if (officeName) {
+      officeName.textContent =
+        name;
+    }
+
+    const currentOfficeName =
+      $("currentOfficeName");
+
+    if (currentOfficeName) {
+      currentOfficeName.textContent =
+        name;
+    }
+
+    await loadPeople();
+
+    finishLoading();
+  }
+
+  // =====================================================
+  // LOAD OFFICES
+  // =====================================================
 
   async function loadOffices() {
 
-    if (
-      state.role !== "admin"
-    ) {
+    const {
+      data,
+      error
+    } = await supabaseClient
+      .from("offices")
+      .select("*")
+      .order(
+        "created_at",
+        {
+          ascending: false
+        }
+      );
+
+    if (error) {
+
+      console.error(
+        "Load offices:",
+        error
+      );
+
       return;
     }
 
-    try {
+    state.offices =
+      data || [];
 
-      const {
-        data,
-        error
-      } =
-        await supabaseClient
-          .from("offices")
-          .select("*")
-          .order(
-            "created_at",
-            {
-              ascending: false
-            }
-          );
-
-      if (error) {
-        console.error(
-          "Load offices:",
-          error
-        );
-
-        return;
-      }
-
-      state.offices =
-        data || [];
-
-      renderOffices();
-
-    } catch (error) {
-
-      console.error(
-        "Load offices exception:",
-        error
-      );
-    }
+    renderOffices();
   }
 
-  // =========================================================
+  // =====================================================
   // RENDER OFFICES
-  // =========================================================
+  // =====================================================
 
   function renderOffices() {
 
@@ -647,9 +519,7 @@
       return;
     }
 
-    if (
-      !state.offices.length
-    ) {
+    if (!state.offices.length) {
 
       container.innerHTML =
         `
@@ -662,148 +532,167 @@
     }
 
     container.innerHTML =
-      state.offices
-        .map(
-          office => {
+      state.offices.map(
+        office => {
 
-            const active =
-              office.active !== false;
+          const active =
+            office.active !== false;
 
-            let contractText =
-              "بدون مدة";
+          let contract =
+            "غير محددة";
+
+          if (
+            office.contract_end
+          ) {
+
+            const date =
+              new Date(
+                office.contract_end
+              );
 
             if (
-              office.contract_end
+              !Number.isNaN(
+                date.getTime()
+              )
             ) {
 
-              const date =
-                new Date(
-                  office.contract_end
+              contract =
+                date.toLocaleDateString(
+                  "ar-IQ"
                 );
-
-              if (
-                !Number.isNaN(
-                  date.getTime()
-                )
-              ) {
-                contractText =
-                  date.toLocaleDateString(
-                    "ar-IQ"
-                  );
-              }
             }
+          }
 
-            return `
-              <div class="office-card">
+          return `
+            <div class="office-card">
 
-                <div class="office-card-header">
-                  <h3>
-                    ${escapeHtml(
-                      office.name ||
-                      office.office_name ||
-                      "مكتب"
-                    )}
-                  </h3>
+              <div class="office-card-header">
 
-                  <span class="${
+                <h3>
+                  ${escapeHTML(
+                    office.name
+                  )}
+                </h3>
+
+                <span class="${
+                  active
+                    ? "status-active"
+                    : "status-disabled"
+                }">
+                  ${
                     active
-                      ? "status-active"
-                      : "status-disabled"
-                  }">
-                    ${
-                      active
-                        ? "فعال"
-                        : "معطل"
-                    }
-                  </span>
-                </div>
-
-                <div class="office-info">
-
-                  <p>
-                    <strong>البريد:</strong>
-                    ${escapeHtml(
-                      office.email || "-"
-                    )}
-                  </p>
-
-                  <p>
-                    <strong>نهاية العقد:</strong>
-                    ${escapeHtml(
-                      contractText
-                    )}
-                  </p>
-
-                </div>
-
-                <div class="office-actions">
-
-                  <button
-                    type="button"
-                    onclick="DebtBook.toggleOffice('${office.id}', ${active})"
-                  >
-                    ${
-                      active
-                        ? "تعطيل"
-                        : "تفعيل"
-                    }
-                  </button>
-
-                  <button
-                    type="button"
-                    onclick="DebtBook.editOffice('${office.id}')"
-                  >
-                    تعديل
-                  </button>
-
-                </div>
+                      ? "فعال"
+                      : "معطل"
+                  }
+                </span>
 
               </div>
-            `;
-          }
-        )
-        .join("");
+
+              <p>
+                البريد:
+                ${escapeHTML(
+                  office.email
+                )}
+              </p>
+
+              <p>
+                نهاية العقد:
+                ${escapeHTML(
+                  contract
+                )}
+              </p>
+
+              <div class="office-actions">
+
+                <button
+                  type="button"
+                  onclick="DebtBook.toggleOffice(
+                    '${office.id}',
+                    ${active}
+                  )"
+                >
+                  ${
+                    active
+                      ? "تعطيل المكتب"
+                      : "تفعيل المكتب"
+                  }
+                </button>
+
+              </div>
+
+            </div>
+          `;
+        }
+      ).join("");
   }
 
-  // =========================================================
-  // CREATE OFFICE ACCOUNT
-  // =========================================================
+  // =====================================================
+  // CREATE OFFICE
+  // =====================================================
 
-  /*
-    مهم:
-
-    إنشاء مستخدم Auth من المتصفح مباشرة غير آمن
-    إذا استخدمنا service_role.
-
-    لذلك هذا الكود يستدعي Edge Function
-    اسمها:
-
-        create-office
-
-    والـ Edge Function هي التي تنشئ Auth User
-    ثم تحفظ المكتب في جدول offices.
-
-    لا تضع service_role داخل app.js.
-  */
-
-  async function createOffice(data) {
+  async function createOffice() {
 
     if (
       state.role !== "admin"
     ) {
 
-      notify(
+      message(
         "فقط الأدمن يستطيع إنشاء مكتب.",
         "error"
       );
 
-      return null;
+      return;
+    }
+
+    const name =
+      $("officeNameInput")?.value.trim();
+
+    const email =
+      $("officeEmailInput")?.value
+        .trim()
+        .toLowerCase();
+
+    const password =
+      $("officePasswordInput")?.value;
+
+    const contractStart =
+      $("officeContractStart")?.value ||
+      null;
+
+    const contractEnd =
+      $("officeContractEnd")?.value ||
+      null;
+
+    if (
+      !name ||
+      !email ||
+      !password
+    ) {
+
+      message(
+        "أكمل بيانات المكتب.",
+        "error"
+      );
+
+      return;
+    }
+
+    if (
+      password.length < 6
+    ) {
+
+      message(
+        "كلمة المرور يجب أن تكون 6 أحرف على الأقل.",
+        "error"
+      );
+
+      return;
     }
 
     try {
 
       const {
-        data: result,
+        data,
         error
       } =
         await supabaseClient.functions
@@ -811,20 +700,13 @@
             "create-office",
             {
               body: {
-                name:
-                  data.name,
-
-                email:
-                  data.email,
-
-                password:
-                  data.password,
-
+                name,
+                email,
+                password,
+                contract_start:
+                  contractStart,
                 contract_end:
-                  data.contract_end,
-
-                active:
-                  true
+                  contractEnd
               }
             }
           );
@@ -836,22 +718,32 @@
           error
         );
 
-        notify(
+        message(
           "تعذر إنشاء حساب المكتب.",
           "error"
         );
 
-        return null;
+        return;
       }
 
-      notify(
+      console.log(
+        "Office created:",
+        data
+      );
+
+      message(
         "تم إنشاء حساب المكتب بنجاح.",
         "success"
       );
 
-      await loadOffices();
+      const form =
+        $("createOfficeForm");
 
-      return result;
+      if (form) {
+        form.reset();
+      }
+
+      await loadOffices();
 
     } catch (error) {
 
@@ -860,18 +752,16 @@
         error
       );
 
-      notify(
+      message(
         "حدث خطأ أثناء إنشاء المكتب.",
         "error"
       );
-
-      return null;
     }
   }
 
-  // =========================================================
+  // =====================================================
   // TOGGLE OFFICE
-  // =========================================================
+  // =====================================================
 
   async function toggleOffice(
     officeId,
@@ -884,146 +774,41 @@
       return;
     }
 
-    try {
-
-      const {
-        error
-      } =
-        await supabaseClient
-          .from("offices")
-          .update({
-            active:
-              !currentStatus
-          })
-          .eq(
-            "id",
-            officeId
-          );
-
-      if (error) {
-
-        console.error(
-          "Toggle office:",
-          error
+    const {
+      error
+    } =
+      await supabaseClient
+        .from("offices")
+        .update({
+          active:
+            !currentStatus
+        })
+        .eq(
+          "id",
+          officeId
         );
 
-        notify(
-          "تعذر تغيير حالة المكتب.",
-          "error"
-        );
-
-        return;
-      }
-
-      await loadOffices();
-
-    } catch (error) {
+    if (error) {
 
       console.error(
+        "Toggle office:",
         error
       );
+
+      message(
+        "تعذر تغيير حالة المكتب.",
+        "error"
+      );
+
+      return;
     }
+
+    await loadOffices();
   }
 
-  // =========================================================
-  // EDIT OFFICE
-  // =========================================================
-
-  async function editOffice(
-    officeId
-  ) {
-
-    const office =
-      state.offices.find(
-        item =>
-          String(item.id) ===
-          String(officeId)
-      );
-
-    if (!office) {
-      return;
-    }
-
-    const newName =
-      prompt(
-        "اسم المكتب:",
-        office.name ||
-        office.office_name ||
-        ""
-      );
-
-    if (
-      newName === null
-    ) {
-      return;
-    }
-
-    const newContract =
-      prompt(
-        "تاريخ انتهاء العقد YYYY-MM-DD:",
-        office.contract_end ||
-        ""
-      );
-
-    if (
-      newContract === null
-    ) {
-      return;
-    }
-
-    try {
-
-      const {
-        error
-      } =
-        await supabaseClient
-          .from("offices")
-          .update({
-            name:
-              newName.trim(),
-
-            contract_end:
-              newContract.trim() ||
-              null
-          })
-          .eq(
-            "id",
-            officeId
-          );
-
-      if (error) {
-
-        console.error(
-          "Edit office:",
-          error
-        );
-
-        notify(
-          "تعذر تعديل المكتب.",
-          "error"
-        );
-
-        return;
-      }
-
-      notify(
-        "تم تعديل المكتب.",
-        "success"
-      );
-
-      await loadOffices();
-
-    } catch (error) {
-
-      console.error(
-        error
-      );
-    }
-  }
-
-  // =========================================================
-  // PEOPLE
-  // =========================================================
+  // =====================================================
+  // LOAD PEOPLE
+  // =====================================================
 
   async function loadPeople() {
 
@@ -1034,63 +819,43 @@
       return;
     }
 
-    try {
-
-      /*
-        مهم:
-
-        يتم استخدام office_id حتى لا يستطيع
-        المكتب تحميل بيانات مكتب آخر.
-
-        وRLS في Supabase يجب أن يمنع الوصول
-        أيضاً على مستوى قاعدة البيانات.
-      */
-
-      const {
-        data,
-        error
-      } =
-        await supabaseClient
-          .from("people")
-          .select("*")
-          .eq(
-            "office_id",
-            state.office.id
-          )
-          .order(
-            "created_at",
-            {
-              ascending: false
-            }
-          );
-
-      if (error) {
-
-        console.error(
-          "Load people:",
-          error
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from("people")
+        .select("*")
+        .eq(
+          "office_id",
+          state.office.id
+        )
+        .order(
+          "created_at",
+          {
+            ascending: false
+          }
         );
 
-        return;
-      }
-
-      state.people =
-        data || [];
-
-      renderPeople();
-
-    } catch (error) {
+    if (error) {
 
       console.error(
-        "Load people exception:",
+        "Load people:",
         error
       );
+
+      return;
     }
+
+    state.people =
+      data || [];
+
+    renderPeople();
   }
 
-  // =========================================================
+  // =====================================================
   // RENDER PEOPLE
-  // =========================================================
+  // =====================================================
 
   function renderPeople() {
 
@@ -1101,46 +866,12 @@
       return;
     }
 
-    let people =
-      [...state.people];
-
-    const search =
-      state.searchQuery
-        .trim()
-        .toLowerCase();
-
-    if (search) {
-
-      people =
-        people.filter(
-          person => {
-
-            const name =
-              String(
-                person.name || ""
-              )
-                .toLowerCase();
-
-            const phone =
-              String(
-                person.phone || ""
-              )
-                .toLowerCase();
-
-            return (
-              name.includes(search) ||
-              phone.includes(search)
-            );
-          }
-        );
-    }
-
-    if (!people.length) {
+    if (!state.people.length) {
 
       container.innerHTML =
         `
         <div class="empty-state">
-          لا توجد بيانات
+          لا توجد ديون أو أشخاص حالياً.
         </div>
         `;
 
@@ -1148,48 +879,135 @@
     }
 
     container.innerHTML =
-      people
-        .map(
-          person => `
-            <div class="person-card">
+      state.people.map(
+        person => `
+          <div class="person-card">
 
-              <h3>
-                ${escapeHtml(
-                  person.name ||
-                  "بدون اسم"
-                )}
-              </h3>
+            <h3>
+              ${escapeHTML(
+                person.name
+              )}
+            </h3>
 
-              <p>
-                الهاتف:
-                ${escapeHtml(
-                  person.phone || "-"
-                )}
-              </p>
+            <p>
+              الهاتف:
+              ${escapeHTML(
+                person.phone || "-"
+              )}
+            </p>
 
-              <p>
-                المبلغ:
-                ${escapeHtml(
-                  person.amount || 0
-                )}
-              </p>
+            <p>
+              المبلغ:
+              ${escapeHTML(
+                person.amount || 0
+              )}
+            </p>
 
-              <button
-                type="button"
-                onclick="DebtBook.openPerson('${person.id}')"
-              >
-                فتح الدفتر
-              </button>
+            <button
+              type="button"
+              onclick="DebtBook.openPerson('${person.id}')"
+            >
+              فتح
+            </button>
 
-            </div>
-          `
-        )
-        .join("");
+          </div>
+        `
+      ).join("");
   }
 
-  // =========================================================
+  // =====================================================
+  // ADD PERSON
+  // =====================================================
+
+  async function addPerson() {
+
+    if (
+      state.role !== "office" ||
+      !state.office
+    ) {
+      return;
+    }
+
+    const name =
+      $("personNameInput")?.value.trim();
+
+    const phone =
+      $("personPhoneInput")?.value.trim();
+
+    const amount =
+      Number(
+        $("personAmountInput")?.value || 0
+      );
+
+    const notes =
+      $("personNotesInput")?.value.trim();
+
+    if (!name) {
+
+      message(
+        "اكتب اسم الشخص.",
+        "error"
+      );
+
+      return;
+    }
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from("people")
+        .insert({
+          office_id:
+            state.office.id,
+
+          name,
+
+          phone:
+            phone || null,
+
+          amount,
+
+          notes:
+            notes || null
+        })
+        .select()
+        .single();
+
+    if (error) {
+
+      console.error(
+        "Add person:",
+        error
+      );
+
+      message(
+        "تعذر إضافة الشخص.",
+        "error"
+      );
+
+      return;
+    }
+
+    console.log(
+      "Person created:",
+      data
+    );
+
+    const form =
+      $("personForm");
+
+    if (form) {
+      form.reset();
+    }
+
+    await loadPeople();
+  }
+
+  // =====================================================
   // OPEN PERSON
-  // =========================================================
+  // =====================================================
 
   function openPerson(
     personId
@@ -1197,8 +1015,8 @@
 
     const person =
       state.people.find(
-        item =>
-          String(item.id) ===
+        p =>
+          String(p.id) ===
           String(personId)
       );
 
@@ -1210,7 +1028,7 @@
       person.id;
 
     console.log(
-      "Current person:",
+      "Open person:",
       person
     );
 
@@ -1224,191 +1042,9 @@
     );
   }
 
-  // =========================================================
-  // CREATE PERSON
-  // =========================================================
-
-  async function createPerson(
-    data
-  ) {
-
-    if (
-      state.role !== "office" ||
-      !state.office
-    ) {
-      return;
-    }
-
-    try {
-
-      const {
-        data: person,
-        error
-      } =
-        await supabaseClient
-          .from("people")
-          .insert({
-            office_id:
-              state.office.id,
-
-            name:
-              data.name,
-
-            phone:
-              data.phone || null,
-
-            amount:
-              data.amount || 0,
-
-            notes:
-              data.notes || null
-          })
-          .select()
-          .single();
-
-      if (error) {
-
-        console.error(
-          "Create person:",
-          error
-        );
-
-        notify(
-          "تعذر إضافة الشخص.",
-          "error"
-        );
-
-        return null;
-      }
-
-      await loadPeople();
-
-      notify(
-        "تمت إضافة الشخص.",
-        "success"
-      );
-
-      return person;
-
-    } catch (error) {
-
-      console.error(
-        "Create person exception:",
-        error
-      );
-
-      return null;
-    }
-  }
-
-  // =========================================================
-  // SEARCH
-  // =========================================================
-
-  function setupSearch() {
-
-    const input =
-      $("searchInput");
-
-    if (!input) {
-      return;
-    }
-
-    input.addEventListener(
-      "input",
-      function () {
-
-        state.searchQuery =
-          input.value || "";
-
-        renderPeople();
-      }
-    );
-  }
-
-  // =========================================================
-  // LOGIN FORM
-  // =========================================================
-
-  function setupLoginForm() {
-
-    const form =
-      $("loginForm");
-
-    if (!form) {
-
-      console.warn(
-        "loginForm not found"
-      );
-
-      return;
-    }
-
-    form.addEventListener(
-      "submit",
-      async function (event) {
-
-        event.preventDefault();
-
-        const emailInput =
-          $("email") ||
-          $("loginEmail") ||
-          form.querySelector(
-            'input[type="email"]'
-          );
-
-        const passwordInput =
-          $("password") ||
-          $("loginPassword") ||
-          form.querySelector(
-            'input[type="password"]'
-          );
-
-        const email =
-          emailInput
-            ? emailInput.value
-            : "";
-
-        const password =
-          passwordInput
-            ? passwordInput.value
-            : "";
-
-        await handleLogin(
-          email,
-          password
-        );
-      }
-    );
-  }
-
-  // =========================================================
-  // LOGOUT BUTTONS
-  // =========================================================
-
-  function setupLogout() {
-
-    document
-      .querySelectorAll(
-        "[data-action='logout']"
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            "click",
-            async function () {
-
-              await logout();
-            }
-          );
-        }
-      );
-  }
-
-  // =========================================================
+  // =====================================================
   // LOGOUT
-  // =========================================================
+  // =====================================================
 
   async function logout() {
 
@@ -1418,10 +1054,11 @@
         error
       } =
         await supabaseClient.auth
-          .signOut();
+          .signOut({
+            scope: "local"
+          });
 
       if (error) {
-
         console.error(
           "Logout:",
           error
@@ -1431,34 +1068,64 @@
     } catch (error) {
 
       console.error(
-        "Logout exception:",
+        "Logout error:",
         error
       );
     }
 
-    state.user =
-      null;
+    state.user = null;
+    state.role = null;
+    state.office = null;
 
-    state.role =
-      null;
-
-    state.office =
-      null;
-
-    state.people =
-      [];
-
-    state.offices =
-      [];
-
-    location.reload();
+    showLogin();
   }
 
-  // =========================================================
-  // ADMIN CREATE FORM
-  // =========================================================
+  // =====================================================
+  // LOGIN FORM
+  // =====================================================
 
-  function setupCreateOfficeForm() {
+  function setupLoginForm() {
+
+    const form =
+      $("loginForm");
+
+    if (!form) {
+      console.warn(
+        "loginForm not found"
+      );
+
+      return;
+    }
+
+    form.addEventListener(
+      "submit",
+      async event => {
+
+        event.preventDefault();
+
+        const email =
+          $("email")?.value ||
+          $("loginEmail")?.value ||
+          "";
+
+        const password =
+          $("password")?.value ||
+          $("loginPassword")?.value ||
+          "";
+
+        await login(
+          email,
+          password
+        );
+      }
+    );
+  }
+
+  // =====================================================
+  // OFFICE FORM
+  // =====================================================
+
+  function setupOfficeForm() {
 
     const form =
       $("createOfficeForm");
@@ -1469,113 +1136,83 @@
 
     form.addEventListener(
       "submit",
-      async function (event) {
+      async event => {
 
         event.preventDefault();
 
-        if (
-          state.role !== "admin"
-        ) {
-
-          notify(
-            "فقط الأدمن يستطيع إنشاء الحسابات.",
-            "error"
-          );
-
-          return;
-        }
-
-        const name =
-          value("officeNameInput");
-
-        const email =
-          value("officeEmailInput")
-            .toLowerCase();
-
-        const password =
-          value("officePasswordInput");
-
-        const contractEnd =
-          value("officeContractEnd");
-
-        if (
-          !name ||
-          !email ||
-          !password
-        ) {
-
-          notify(
-            "أكمل معلومات المكتب.",
-            "error"
-          );
-
-          return;
-        }
-
-        if (
-          password.length < 6
-        ) {
-
-          notify(
-            "كلمة المرور يجب أن تكون 6 أحرف على الأقل.",
-            "error"
-          );
-
-          return;
-        }
-
-        await createOffice({
-
-          name,
-
-          email,
-
-          password,
-
-          contract_end:
-            contractEnd || null
-
-        });
-
-        form.reset();
+        await createOffice();
       }
     );
   }
 
-  // =========================================================
-  // AUTH LISTENER
-  // =========================================================
+  // =====================================================
+  // PERSON FORM
+  // =====================================================
 
-  supabaseClient.auth.onAuthStateChange(
-    function (event, session) {
+  function setupPersonForm() {
 
-      console.log(
-        "Supabase Auth:",
-        event
-      );
+    const form =
+      $("personForm");
 
-      if (session) {
-
-        state.user =
-          session.user;
-
-      } else {
-
-        state.user =
-          null;
-
-        state.role =
-          null;
-
-        state.office =
-          null;
-      }
+    if (!form) {
+      return;
     }
-  );
 
-  // =========================================================
-  // INITIALIZE
-  // =========================================================
+    form.addEventListener(
+      "submit",
+      async event => {
+
+        event.preventDefault();
+
+        await addPerson();
+      }
+    );
+  }
+
+  // =====================================================
+  // LOGOUT BUTTONS
+  // =====================================================
+
+  function setupLogoutButtons() {
+
+    document
+      .querySelectorAll(
+        "[data-action='logout']"
+      )
+      .forEach(button => {
+
+        button.addEventListener(
+          "click",
+          logout
+        );
+      });
+  }
+
+  // =====================================================
+  // AUTH EVENTS
+  // =====================================================
+
+  supabaseClient.auth
+    .onAuthStateChange(
+      (event, session) => {
+
+        console.log(
+          "Supabase Auth:",
+          event
+        );
+
+        if (session) {
+          state.user =
+            session.user;
+        } else {
+          state.user = null;
+        }
+      }
+    );
+
+  // =====================================================
+  // START
+  // =====================================================
 
   async function start() {
 
@@ -1584,12 +1221,9 @@
     );
 
     setupLoginForm();
-
-    setupLogout();
-
-    setupSearch();
-
-    setupCreateOfficeForm();
+    setupOfficeForm();
+    setupPersonForm();
+    setupLogoutButtons();
 
     const session =
       await getSession();
@@ -1603,19 +1237,15 @@
       state.user =
         session.user;
 
-      await loadUserProfile();
+      await loadUser();
 
     } else {
 
       console.log(
-        "No Supabase session"
+        "No existing session"
       );
 
-      hide("adminPage");
-      hide("officePage");
-
-      show("loginPage");
-      show("loginScreen");
+      showLogin();
     }
 
     state.initialized =
@@ -1624,57 +1254,43 @@
     finishLoading();
 
     console.log(
-      "Debt Book ready."
+      "Debt Book ready"
     );
   }
 
-  // =========================================================
+  // =====================================================
   // PUBLIC API
-  // =========================================================
+  // =====================================================
 
   window.DebtBook = {
 
     supabase:
       supabaseClient,
 
-    state:
-      state,
+    state,
 
-    login:
-      handleLogin,
+    login,
 
-    logout:
-      logout,
+    logout,
 
-    loadUserProfile:
-      loadUserProfile,
+    loadUser,
 
-    loadOffices:
-      loadOffices,
+    loadOffices,
 
-    loadPeople:
-      loadPeople,
+    loadPeople,
 
-    createOffice:
-      createOffice,
+    createOffice,
 
-    toggleOffice:
-      toggleOffice,
+    toggleOffice,
 
-    editOffice:
-      editOffice,
+    addPerson,
 
-    createPerson:
-      createPerson,
-
-    openPerson:
-      openPerson
-
+    openPerson
   };
 
-  // =========================================================
-  // START
-  // =========================================================
+  // =====================================================
+  // RUN
+  // =====================================================
 
   if (
     document.readyState ===
