@@ -1,55 +1,514 @@
 (function () {
-
   "use strict";
 
+  console.log("Starting Debt Book...");
 
-  /* =====================================================
-     SUPABASE
-  ===================================================== */
+  // =========================================================
+  // SUPABASE CONFIG
+  // =========================================================
 
-  const CFG =
-    window.SUPABASE_CONFIG || {};
+  if (!window.supabase) {
+    console.error("Supabase JS library is missing.");
+
+    alert(
+      "خطأ: مكتبة Supabase غير محملة.\n" +
+      "تأكد من وجود supabase-js@2 في index.html."
+    );
+
+    return;
+  }
+
+  if (!window.SUPABASE_CONFIG) {
+    console.error("Supabase configuration missing.");
+
+    alert(
+      "خطأ: إعدادات Supabase غير موجودة.\n" +
+      "تأكد من ملف supabase-config.js."
+    );
+
+    return;
+  }
 
   const SUPABASE_URL =
-    CFG.SUPABASE_URL || "";
+    window.SUPABASE_CONFIG.SUPABASE_URL || "";
 
-  const SUPABASE_KEY =
-    CFG.SUPABASE_PUBLISHABLE_KEY || "";
+  const SUPABASE_ANON_KEY =
+    window.SUPABASE_CONFIG.SUPABASE_ANON_KEY || "";
 
-  let supabaseClient = null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error("Supabase URL or key is missing.");
 
+    alert(
+      "خطأ: Supabase URL أو المفتاح غير موجود."
+    );
 
-  if (
-    window.supabase &&
-    SUPABASE_URL &&
-    SUPABASE_KEY
-  ) {
+    return;
+  }
 
-    supabaseClient =
-      window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true
-          }
+  // =========================================================
+  // CREATE ONE SUPABASE CLIENT
+  // =========================================================
+
+  const supabaseClient =
+    window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
         }
+      }
+    );
+
+  console.log("Supabase connected");
+
+  // =========================================================
+  // STATE
+  // =========================================================
+
+  const state = {
+    role: null,
+    user: null,
+    office: null,
+
+    offices: [],
+    people: [],
+    transactions: [],
+
+    currentPersonId: null,
+
+    searchQuery: "",
+
+    loading: false
+  };
+
+  // =========================================================
+  // DOM
+  // =========================================================
+
+  const $ = (id) =>
+    document.getElementById(id);
+
+  function show(id) {
+    const el = $(id);
+
+    if (el) {
+      el.classList.remove("hidden");
+    }
+  }
+
+  function hide(id) {
+    const el = $(id);
+
+    if (el) {
+      el.classList.add("hidden");
+    }
+  }
+
+  // =========================================================
+  // SUPABASE TEST
+  // =========================================================
+
+  async function testSupabase() {
+    try {
+      const {
+        data: {
+          session
+        },
+        error
+      } =
+        await supabaseClient.auth.getSession();
+
+      if (error) {
+        console.error(
+          "Supabase session error:",
+          error
+        );
+
+        return false;
+      }
+
+      console.log(
+        "Supabase session:",
+        session
+          ? "FOUND"
+          : "NONE"
       );
 
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        "Supabase connection error:",
+        error
+      );
+
+      return false;
+    }
+  }
+
+  // =========================================================
+  // AUTH STATE
+  // =========================================================
+
+  supabaseClient.auth.onAuthStateChange(
+    async (event, session) => {
+
+      console.log(
+        "Supabase Auth:",
+        event
+      );
+
+      if (session) {
+
+        state.user =
+          session.user;
+
+        console.log(
+          "Logged user:",
+          state.user.email
+        );
+
+      } else {
+
+        state.user = null;
+        state.role = null;
+        state.office = null;
+
+      }
+    }
+  );
+
+  // =========================================================
+  // LOGIN
+  // =========================================================
+
+  async function login(email, password) {
+
+    email =
+      String(email || "")
+        .trim()
+        .toLowerCase();
+
+    password =
+      String(password || "");
+
+    if (!email || !password) {
+
+      alert(
+        "أدخل البريد الإلكتروني وكلمة المرور."
+      );
+
+      return {
+        success: false
+      };
+    }
+
     console.log(
-      "Supabase connected"
+      "Trying Supabase login:",
+      email
+    );
+
+    try {
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient.auth
+          .signInWithPassword({
+            email: email,
+            password: password
+          });
+
+      if (error) {
+
+        console.error(
+          "Auth login failed:",
+          error
+        );
+
+        alert(
+          "فشل تسجيل الدخول:\n" +
+          error.message
+        );
+
+        return {
+          success: false,
+          error
+        };
+      }
+
+      if (!data || !data.user) {
+
+        alert(
+          "لم يتم إنشاء جلسة تسجيل الدخول."
+        );
+
+        return {
+          success: false
+        };
+      }
+
+      state.user =
+        data.user;
+
+      console.log(
+        "Login successful:",
+        state.user.email
+      );
+
+      return {
+        success: true,
+        user: data.user,
+        session: data.session
+      };
+
+    } catch (error) {
+
+      console.error(
+        "Login exception:",
+        error
+      );
+
+      alert(
+        "حدث خطأ أثناء تسجيل الدخول."
+      );
+
+      return {
+        success: false,
+        error
+      };
+    }
+  }
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  async function logout() {
+
+    try {
+
+      const {
+        error
+      } =
+        await supabaseClient.auth
+          .signOut();
+
+      if (error) {
+
+        console.error(
+          "Logout error:",
+          error
+        );
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Logout exception:",
+        error
+      );
+
+    }
+
+    state.user = null;
+    state.role = null;
+    state.office = null;
+
+    location.reload();
+  }
+
+  // =========================================================
+  // LOGIN FORM
+  // =========================================================
+
+  function setupLogin() {
+
+    const form =
+      document.getElementById(
+        "loginForm"
+      );
+
+    if (!form) {
+
+      console.warn(
+        "loginForm not found"
+      );
+
+      return;
+    }
+
+    form.addEventListener(
+      "submit",
+      async function (event) {
+
+        event.preventDefault();
+
+        const emailInput =
+          document.getElementById(
+            "email"
+          ) ||
+          document.getElementById(
+            "loginEmail"
+          ) ||
+          document.querySelector(
+            'input[type="email"]'
+          );
+
+        const passwordInput =
+          document.getElementById(
+            "password"
+          ) ||
+          document.getElementById(
+            "loginPassword"
+          ) ||
+          document.querySelector(
+            'input[type="password"]'
+          );
+
+        const email =
+          emailInput
+            ? emailInput.value
+            : "";
+
+        const password =
+          passwordInput
+            ? passwordInput.value
+            : "";
+
+        const result =
+          await login(
+            email,
+            password
+          );
+
+        if (!result.success) {
+          return;
+        }
+
+        console.log(
+          "User logged in successfully."
+        );
+
+        // إذا عندك واجهة dashboard
+        hide("loginPage");
+        hide("loginScreen");
+
+        show("appPage");
+        show("dashboard");
+
+        // أخفي شاشة التحميل
+        hide("loadingScreen");
+
+        // حدث مخصص لباقي التطبيق
+        window.dispatchEvent(
+          new CustomEvent(
+            "debtbook:login",
+            {
+              detail: result
+            }
+          )
+        );
+      }
+    );
+  }
+
+  // =========================================================
+  // INIT
+  // =========================================================
+
+  async function start() {
+
+    console.log(
+      "Starting Debt Book..."
+    );
+
+    hide("loadingScreen");
+
+    await testSupabase();
+
+    setupLogin();
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supabaseClient.auth
+        .getSession();
+
+    if (session) {
+
+      state.user =
+        session.user;
+
+      console.log(
+        "Existing Supabase session:",
+        state.user.email
+      );
+
+    } else {
+
+      console.log(
+        "No existing Supabase session"
+      );
+    }
+
+    hide("loadingScreen");
+
+    console.log(
+      "Debt Book ready."
+    );
+  }
+
+  // =========================================================
+  // PUBLIC API
+  // =========================================================
+
+  window.DebtBook = {
+
+    supabase:
+      supabaseClient,
+
+    state:
+      state,
+
+    login:
+      login,
+
+    logout:
+      logout,
+
+    testSupabase:
+      testSupabase
+  };
+
+  // =========================================================
+  // START
+  // =========================================================
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      start
     );
 
   } else {
 
-    console.error(
-      "Supabase configuration missing"
-    );
-
+    start();
   }
 
+})();
 
   /* =====================================================
      STATE
