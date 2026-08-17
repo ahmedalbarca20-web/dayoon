@@ -1,749 +1,447 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
-
-  <meta name="theme-color" content="#0f172a">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>دفتر الديون</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css">
 
-  <link
-    href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap"
-    rel="stylesheet"
-  >
-
-  <link rel="stylesheet" href="style.css?v=21">
-
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      min-height: 100%;
-      font-family: "Tajawal", Arial, sans-serif;
-      -webkit-text-size-adjust: 100%;
-      touch-action: manipulation;
-    }
-
-    input,
-    textarea,
-    button,
-    select {
-      font-family: inherit;
-      font-size: 16px;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .loading-screen {
-      position: fixed;
-      inset: 0;
-      z-index: 999999;
-      background: #0f172a;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      font-weight: 700;
-    }
-
-    .loading-screen.hidden {
-      display: none !important;
-    }
-
-    .contract-banner {
-      margin: 12px 0;
-      padding: 14px 18px;
-      border-radius: 14px;
-      background: #eff6ff;
-      color: #1e40af;
-      border: 1px solid #bfdbfe;
-    }
-
-    .contract-banner.expired {
-      background: #fef2f2;
-      color: #b91c1c;
-      border-color: #fecaca;
-    }
-
-    .contract-banner.disabled {
-      background: #fff7ed;
-      color: #c2410c;
-      border-color: #fed7aa;
-    }
-
-    .contract-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .contract-status {
-      display: inline-flex;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .contract-status.active {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .contract-status.disabled {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .contract-status.expired {
-      background: #ffedd5;
-      color: #9a3412;
-    }
-
-    .office-card {
-      cursor: default;
-    }
-
-    .office-contract {
-      margin-top: 8px;
-      font-size: 13px;
-      color: #64748b;
-    }
-
-    .modal-content {
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-
-    .form-group {
-      margin-bottom: 15px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 7px;
-      font-weight: 700;
-    }
-
-    .form-group input,
-    .form-group textarea,
-    .form-group select {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid #cbd5e1;
-      border-radius: 10px;
-      outline: none;
-      background: white;
-    }
-
-    .form-group textarea {
-      min-height: 90px;
-      resize: vertical;
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    @media (max-width: 650px) {
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .admin-contract-controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-top: 10px;
-    }
-
-    .btn-contract-on {
-      background: #16a34a;
-      color: white;
-      border: 0;
-    }
-
-    .btn-contract-off {
-      background: #dc2626;
-      color: white;
-      border: 0;
-    }
-
-    .login-message {
-      margin-bottom: 12px;
-    }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
 </head>
 
 <body>
 
-  <!-- شاشة التحميل -->
-  <div id="loadingScreen" class="loading-screen">
-    جارٍ تحميل دفتر الديون...
+<div id="loadingScreen" class="loading-screen">
+  <div class="loader"></div>
+  <div>جارٍ تحميل دفتر الديون...</div>
+</div>
+
+
+<!-- =====================================================
+     LOGIN
+===================================================== -->
+
+<section id="loginScreen" class="screen hidden">
+
+  <div class="login-card">
+
+    <div class="logo">
+      <div class="logo-icon">₿</div>
+      <h1>دفتر الديون</h1>
+      <p>نظام إدارة الديون</p>
+    </div>
+
+    <form id="loginForm">
+
+      <label>البريد الإلكتروني</label>
+
+      <input
+        id="loginEmail"
+        type="email"
+        autocomplete="username"
+        placeholder="example@email.com"
+        required
+      >
+
+      <label>كلمة المرور</label>
+
+      <input
+        id="loginPassword"
+        type="password"
+        autocomplete="current-password"
+        placeholder="••••••••"
+        required
+      >
+
+      <button
+        id="loginButton"
+        type="submit"
+        class="primary-button"
+      >
+        تسجيل الدخول
+      </button>
+
+      <div id="loginMessage"></div>
+
+    </form>
+
   </div>
 
+</section>
 
-  <!-- =====================================================
-       تسجيل الدخول
-       ===================================================== -->
 
-  <div id="loginView" class="login-view hidden">
+<!-- =====================================================
+     ADMIN
+===================================================== -->
 
-    <div class="login-card">
+<section id="adminScreen" class="screen hidden">
 
-      <div class="login-logo">
+  <header class="topbar">
 
-        <span class="logo-icon">📒</span>
+    <div>
+      <h2>لوحة الإدارة</h2>
+      <span id="adminEmail"></span>
+    </div>
 
-        <h1>دفتر الديون</h1>
+    <button id="adminLogout" class="logout-button">
+      تسجيل الخروج
+    </button>
 
+  </header>
+
+
+  <main class="container">
+
+    <div class="page-title">
+
+      <div>
+        <h1>المكاتب</h1>
+        <p>إدارة حسابات المكاتب ومدة العقود</p>
       </div>
 
-      <p class="login-subtitle">
-        سجّل دخولك للمتابعة
-      </p>
+      <button
+        id="openOfficeModal"
+        class="primary-button"
+      >
+        + إضافة مكتب
+      </button>
+
+    </div>
 
 
-      <div
-        id="loginMessage"
-        class="login-message hidden">
+    <div id="adminMessage"></div>
+
+    <div class="stats">
+
+      <div class="stat-card">
+        <span>عدد المكاتب</span>
+        <strong id="totalOffices">0</strong>
       </div>
 
+      <div class="stat-card">
+        <span>المكاتب الفعالة</span>
+        <strong id="activeOffices">0</strong>
+      </div>
 
-      <form id="loginForm">
+      <div class="stat-card">
+        <span>المكاتب المعطلة</span>
+        <strong id="inactiveOffices">0</strong>
+      </div>
 
-        <div class="form-group">
-
-          <label>
-            البريد الإلكتروني / اسم المستخدم
-          </label>
-
-          <input
-            type="text"
-            id="loginEmail"
-            placeholder="البريد أو اسم المستخدم"
-            autocomplete="username"
-            required
-          >
-
-        </div>
+    </div>
 
 
-        <div class="form-group">
+    <div class="table-card">
 
-          <label>
-            كلمة المرور
-          </label>
+      <div class="table-header">
+        <h3>قائمة المكاتب</h3>
+      </div>
 
-          <input
-            type="password"
-            id="loginPassword"
-            placeholder="••••••••"
-            autocomplete="current-password"
-            required
-          >
+      <div class="table-wrapper">
 
-        </div>
+        <table>
 
+          <thead>
+            <tr>
+              <th>المكتب</th>
+              <th>الإيميل</th>
+              <th>بداية العقد</th>
+              <th>نهاية العقد</th>
+              <th>الحالة</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
 
-        <button
-          type="submit"
-          class="btn btn-primary login-btn"
-          id="loginBtn">
+          <tbody id="officesTable"></tbody>
 
-          دخول
-
-        </button>
-
-      </form>
-
-
-      <p
-        class="login-hint"
-        id="loginHint">
-      </p>
-
-
-      <div
-        class="conn-status"
-        id="connStatus">
-
-        <span
-          class="conn-dot"
-          id="connDot">
-        </span>
-
-        <span id="connText">
-          جارٍ الفحص...
-        </span>
+        </table>
 
       </div>
 
     </div>
 
-  </div>
+  </main>
+
+</section>
 
 
-  <!-- =====================================================
-       لوحة الأدمن
-       ===================================================== -->
+<!-- =====================================================
+     OFFICE
+===================================================== -->
 
-  <div id="adminView" class="hidden">
+<section id="officeScreen" class="screen hidden">
 
-    <header class="app-header">
+  <header class="topbar">
 
-      <div class="container header-inner">
+    <div>
+      <h2 id="officeTitle">دفتر الديون</h2>
+      <span id="officeEmail"></span>
+    </div>
 
-        <div class="logo">
+    <button id="officeLogout" class="logout-button">
+      تسجيل الخروج
+    </button>
 
-          <span class="logo-icon">
-            ⚙️
-          </span>
-
-          <div>
-
-            <h1>
-              لوحة الإدارة
-            </h1>
-
-            <span class="subtitle">
-              إدارة المكاتب والعقود
-            </span>
-
-          </div>
-
-        </div>
+  </header>
 
 
-        <div class="header-actions">
+  <main class="container">
 
-          <div class="header-stats">
+    <div class="page-title">
 
-            <div class="stat-box">
-
-              <span class="stat-label">
-                عدد المكاتب
-              </span>
-
-              <span
-                class="stat-value"
-                id="officesCount">
-                0
-              </span>
-
-            </div>
-
-          </div>
-
-
-          <button
-            class="btn btn-logout"
-            id="adminLogoutBtn">
-
-            خروج
-
-          </button>
-
-        </div>
-
+      <div>
+        <h1>الزبائن</h1>
+        <p id="contractStatus"></p>
       </div>
 
-    </header>
+      <button
+        id="addPersonButton"
+        class="primary-button"
+      >
+        + إضافة زبون
+      </button>
+
+    </div>
 
 
-    <main class="container">
+    <div class="stats">
 
-      <div class="toolbar">
-
-        <div class="search-box">
-
-          <input
-            type="text"
-            id="officeSearch"
-            placeholder="ابحث عن مكتب..."
-          >
-
-        </div>
-
-
-        <button
-          class="btn btn-primary"
-          id="addOfficeBtn">
-
-          + إضافة مكتب
-
-        </button>
-
+      <div class="stat-card">
+        <span>عدد الزبائن</span>
+        <strong id="peopleCount">0</strong>
       </div>
 
-
-      <div
-        id="officesList"
-        class="people-list">
+      <div class="stat-card">
+        <span>إجمالي الديون</span>
+        <strong id="totalDebt">0</strong>
       </div>
 
-
-      <div
-        id="officesEmpty"
-        class="empty-state hidden">
-
-        <p>
-          لا يوجد مكاتب بعد.
-        </p>
-
-      </div>
-
-    </main>
-
-  </div>
-
-
-  <!-- =====================================================
-       تطبيق المكتب
-       ===================================================== -->
-
-  <div id="appView" class="hidden">
-
-    <header class="app-header">
-
-      <div class="container header-inner">
-
-        <div class="logo">
-
-          <span class="logo-icon">
-            📒
-          </span>
-
-          <div>
-
-            <h1 id="appTitle">
-              دفتر الديون
-            </h1>
-
-            <span
-              class="subtitle"
-              id="appSubtitle">
-              إدارة الديون بسهولة
-            </span>
-
-          </div>
-
-        </div>
-
-
-        <div class="header-actions">
-
-          <div class="header-stats">
-
-            <div class="stat-box">
-
-              <span class="stat-label">
-                إجمالي المستحق
-              </span>
-
-              <span
-                class="stat-value"
-                id="totalDebt">
-                0
-              </span>
-
-            </div>
-
-
-            <div class="stat-box">
-
-              <span class="stat-label">
-                عدد الأشخاص
-              </span>
-
-              <span
-                class="stat-value"
-                id="peopleCount">
-                0
-              </span>
-
-            </div>
-
-          </div>
-
-
-          <button
-            class="btn btn-ghost hidden"
-            id="backToAdminBtn">
-
-            → لوحة الإدارة
-
-          </button>
-
-
-          <button
-            class="btn btn-logout"
-            id="logoutBtn">
-
-            خروج
-
-          </button>
-
-        </div>
-
-      </div>
-
-
-      <div class="container">
-
-        <div
-          id="contractBanner"
-          class="contract-banner hidden">
-        </div>
-
-      </div>
-
-    </header>
-
-
-    <main class="container">
-
-      <!-- قائمة الأشخاص -->
-
-      <section
-        id="peopleView"
-        class="view">
-
-        <div class="toolbar">
-
-          <div class="search-box">
-
-            <input
-              type="text"
-              id="searchInput"
-              placeholder="ابحث بالاسم أو رقم الهاتف..."
-            >
-
-          </div>
-
-
-          <button
-            class="btn btn-ghost"
-            id="exportBtn">
-
-            ⬇ تصدير نسخة
-
-          </button>
-
-
-          <button
-            class="btn btn-ghost"
-            id="importBtn">
-
-            ⬆ استيراد نسخة
-
-          </button>
-
-
-          <button
-            class="btn btn-primary"
-            id="addPersonBtn">
-
-            + إضافة شخص
-
-          </button>
-
-        </div>
-
-
-        <input
-          type="file"
-          id="importFile"
-          accept=".json"
-          class="hidden"
-        >
-
-
-        <div
-          id="peopleList"
-          class="people-list">
-        </div>
-
-
-        <div
-          id="emptyState"
-          class="empty-state hidden">
-
-          <p>
-            لا يوجد أشخاص بعد.
-          </p>
-
-        </div>
-
-      </section>
-
-
-      <!-- صفحة الشخص -->
-
-      <section
-        id="personView"
-        class="view hidden">
-
-        <div class="person-header">
-
-          <button
-            class="btn btn-ghost"
-            id="backBtn">
-
-            → الرجوع للقائمة
-
-          </button>
-
-        </div>
-
-
-        <div
-          class="person-card"
-          id="personCard">
-        </div>
-
-
-        <div class="actions-bar">
-
-          <button
-            class="btn btn-success"
-            id="payBtn">
-
-            تسديد
-
-          </button>
-
-
-          <button
-            class="btn btn-danger"
-            id="purchaseBtn">
-
-            شراء مباشر
-
-          </button>
-
-
-          <button
-            class="btn btn-edit"
-            id="editPersonBtn">
-
-            تعديل بيانات الشخص
-
-          </button>
-
-        </div>
-
-
-        <h2 class="section-title">
-
-          سجل الحركات
-
-          <span
-            class="count-badge"
-            id="txnCount">
-            0
-          </span>
-
-        </h2>
-
-
-        <div
-          id="transactionsList"
-          class="transactions-list">
-        </div>
-
-      </section>
-
-    </main>
-
-  </div>
-
-
-  <!-- =====================================================
-       Modal
-       ===================================================== -->
-
-  <div
-    id="modal"
-    class="modal hidden">
-
-    <div class="modal-content">
-
-      <div class="modal-header">
-
-        <h3 id="modalTitle">
-          عنوان
-        </h3>
-
-        <button
-          class="modal-close"
-          id="modalClose">
-
-          ✕
-
-        </button>
-
-      </div>
-
-
-      <div
-        class="modal-body"
-        id="modalBody">
+      <div class="stat-card">
+        <span>المبلغ المدفوع</span>
+        <strong id="totalPaid">0</strong>
       </div>
 
     </div>
 
+
+    <div class="search-box">
+
+      <input
+        id="searchPeople"
+        type="search"
+        placeholder="ابحث عن زبون..."
+      >
+
+    </div>
+
+
+    <div class="table-card">
+
+      <div class="table-wrapper">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>الاسم</th>
+              <th>الهاتف</th>
+              <th>العنوان</th>
+              <th>الدين</th>
+              <th>المدفوع</th>
+              <th>المتبقي</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
+
+          <tbody id="peopleTable"></tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+  </main>
+
+</section>
+
+
+<!-- =====================================================
+     OFFICE MODAL
+===================================================== -->
+
+<div
+  id="officeModal"
+  class="modal hidden"
+>
+
+  <div class="modal-card">
+
+    <div class="modal-header">
+
+      <h2>إضافة مكتب جديد</h2>
+
+      <button
+        id="closeOfficeModal"
+        class="close-button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <form id="officeForm">
+
+      <label>اسم المكتب</label>
+
+      <input
+        id="officeName"
+        required
+        placeholder="مثال: مكتب أحمد"
+      >
+
+
+      <label>إيميل الدخول</label>
+
+      <input
+        id="officeEmail"
+        type="email"
+        required
+        placeholder="office@email.com"
+      >
+
+
+      <label>كلمة المرور</label>
+
+      <input
+        id="officePassword"
+        type="password"
+        minlength="6"
+        required
+        placeholder="6 أحرف على الأقل"
+      >
+
+
+      <div class="form-row">
+
+        <div>
+          <label>بداية العقد</label>
+
+          <input
+            id="contractStart"
+            type="date"
+          >
+        </div>
+
+        <div>
+          <label>نهاية العقد</label>
+
+          <input
+            id="contractEnd"
+            type="date"
+          >
+        </div>
+
+      </div>
+
+
+      <div id="officeFormMessage"></div>
+
+
+      <button
+        type="submit"
+        id="saveOfficeButton"
+        class="primary-button full"
+      >
+        إنشاء المكتب
+      </button>
+
+    </form>
+
   </div>
 
-
-  <!-- =====================================================
-       Supabase
-       ===================================================== -->
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <script src="supabase-config.js"></script>
-
-  <script src="app.js?v=22"></script>
+</div>
 
 
-  <script>
-    // لا تسمح لشاشة التحميل بالبقاء
-    window.addEventListener("load", function () {
+<!-- =====================================================
+     PERSON MODAL
+===================================================== -->
 
-      const screen =
-        document.getElementById("loadingScreen");
+<div
+  id="personModal"
+  class="modal hidden"
+>
 
-      if (screen) {
-        screen.classList.add("hidden");
-        screen.style.display = "none";
-      }
+  <div class="modal-card">
 
-    });
-  </script>
+    <div class="modal-header">
+
+      <h2>إضافة زبون</h2>
+
+      <button
+        id="closePersonModal"
+        class="close-button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <form id="personForm">
+
+      <label>اسم الزبون</label>
+
+      <input
+        id="personName"
+        required
+        placeholder="اسم الزبون"
+      >
+
+
+      <label>رقم الهاتف</label>
+
+      <input
+        id="personPhone"
+        placeholder="رقم الهاتف"
+      >
+
+
+      <label>العنوان</label>
+
+      <input
+        id="personAddress"
+        placeholder="العنوان"
+      >
+
+
+      <label>ملاحظات</label>
+
+      <textarea
+        id="personNotes"
+        placeholder="ملاحظات"
+      ></textarea>
+
+
+      <button
+        type="submit"
+        class="primary-button full"
+      >
+        حفظ الزبون
+      </button>
+
+    </form>
+
+  </div>
+
+</div>
+
+
+<script src="app.js"></script>
 
 </body>
 </html>
