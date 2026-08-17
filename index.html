@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
-
   <meta charset="UTF-8">
 
   <meta
@@ -13,29 +11,47 @@
   <title>دفتر الديون</title>
 
   <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  >
+
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  >
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+
+  <link
     rel="stylesheet"
     href="style.css"
   >
 
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  ></script>
+
+  <script src="supabase-config.js"></script>
 </head>
 
 <body>
 
-  <!-- ========================================= -->
-  <!-- LOADING -->
-  <!-- ========================================= -->
+  <!-- =====================================================
+       LOADING
+       ===================================================== -->
 
-  <div
-    id="loadingScreen"
-    class="loading-screen"
-  >
+  <div id="loadingScreen" class="loading-screen">
     جارٍ تحميل دفتر الديون...
   </div>
 
 
-  <!-- ========================================= -->
-  <!-- LOGIN -->
-  <!-- ========================================= -->
+  <!-- =====================================================
+       LOGIN
+       ===================================================== -->
 
   <section
     id="loginPage"
@@ -44,41 +60,45 @@
 
     <div class="login-box">
 
-      <h1>
-        دفتر الديون
-      </h1>
+      <h1>دفتر الديون</h1>
 
       <p>
-        تسجيل الدخول
+        تسجيل الدخول إلى حسابك
       </p>
 
       <form id="loginForm">
 
-        <label>
-          البريد الإلكتروني
-        </label>
+        <div>
+          <label for="loginEmail">
+            البريد الإلكتروني
+          </label>
 
-        <input
-          id="email"
-          type="email"
-          autocomplete="username"
-          required
-        >
+          <input
+            id="loginEmail"
+            type="email"
+            placeholder="example@email.com"
+            autocomplete="username"
+            required
+          >
+        </div>
 
-        <label>
-          كلمة المرور
-        </label>
+        <div style="margin-top:16px">
 
-        <input
-          id="password"
-          type="password"
-          autocomplete="current-password"
-          required
-        >
+          <label for="loginPassword">
+            كلمة المرور
+          </label>
 
-        <button
-          type="submit"
-        >
+          <input
+            id="loginPassword"
+            type="password"
+            placeholder="كلمة المرور"
+            autocomplete="current-password"
+            required
+          >
+
+        </div>
+
+        <button type="submit">
           تسجيل الدخول
         </button>
 
@@ -94,9 +114,9 @@
   </section>
 
 
-  <!-- ========================================= -->
-  <!-- ADMIN -->
-  <!-- ========================================= -->
+  <!-- =====================================================
+       ADMIN
+       ===================================================== -->
 
   <section
     id="adminPage"
@@ -106,19 +126,14 @@
     <header class="topbar">
 
       <div>
-        <h1>
-          لوحة تحكم الأدمن
-        </h1>
+        <h1>لوحة تحكم الأدمن</h1>
 
         <p>
           إدارة المكاتب والحسابات
         </p>
       </div>
 
-      <button
-        type="button"
-        data-action="logout"
-      >
+      <button id="adminLogoutBtn">
         تسجيل الخروج
       </button>
 
@@ -129,100 +144,88 @@
 
       <!-- CREATE OFFICE -->
 
-      <div class="panel">
+      <section class="panel">
 
         <h2>
-          إنشاء حساب مكتب
+          إضافة مكتب جديد
         </h2>
 
         <p>
-          يتم إنشاء حساب المكتب من الأدمن فقط.
+          من هنا يتم إنشاء حساب المكتب.
         </p>
 
-        <form
-          id="createOfficeForm"
-          class="form-grid"
-        >
+        <form id="officeForm">
 
-          <div>
+          <div class="form-grid">
 
-            <label>
-              اسم المكتب
-            </label>
+            <div>
+              <label>
+                اسم المكتب
+              </label>
 
-            <input
-              id="officeNameInput"
-              type="text"
-              required
-            >
-
-          </div>
+              <input
+                id="officeName"
+                type="text"
+                required
+              >
+            </div>
 
 
-          <div>
+            <div>
+              <label>
+                البريد الإلكتروني
+              </label>
 
-            <label>
-              البريد الإلكتروني
-            </label>
-
-            <input
-              id="officeEmailInput"
-              type="email"
-              required
-            >
-
-          </div>
+              <input
+                id="officeEmail"
+                type="email"
+                required
+              >
+            </div>
 
 
-          <div>
+            <div>
+              <label>
+                كلمة المرور
+              </label>
 
-            <label>
-              كلمة المرور
-            </label>
-
-            <input
-              id="officePasswordInput"
-              type="password"
-              minlength="6"
-              required
-            >
-
-          </div>
+              <input
+                id="officePassword"
+                type="password"
+                minlength="6"
+                required
+              >
+            </div>
 
 
-          <div>
+            <div>
+              <label>
+                بداية العقد
+              </label>
 
-            <label>
-              بداية العقد
-            </label>
-
-            <input
-              id="officeContractStart"
-              type="date"
-            >
-
-          </div>
+              <input
+                id="contractStart"
+                type="date"
+              >
+            </div>
 
 
-          <div>
+            <div>
+              <label>
+                نهاية العقد
+              </label>
 
-            <label>
-              نهاية العقد
-            </label>
-
-            <input
-              id="officeContractEnd"
-              type="date"
-            >
+              <input
+                id="contractEnd"
+                type="date"
+              >
+            </div>
 
           </div>
 
+          <div style="margin-top:20px">
 
-          <div class="full">
-
-            <button
-              type="submit"
-            >
+            <button type="submit">
               إنشاء حساب المكتب
             </button>
 
@@ -230,32 +233,41 @@
 
         </form>
 
-      </div>
+        <div
+          id="officeMessage"
+          class="login-message"
+        ></div>
+
+      </section>
 
 
       <!-- OFFICES -->
 
-      <div class="panel">
+      <section class="panel">
 
         <h2>
           المكاتب
         </h2>
+
+        <p>
+          المكاتب الموجودة وحالة الاشتراك.
+        </p>
 
         <div
           id="officesList"
           class="cards"
         ></div>
 
-      </div>
+      </section>
 
     </main>
 
   </section>
 
 
-  <!-- ========================================= -->
-  <!-- OFFICE -->
-  <!-- ========================================= -->
+  <!-- =====================================================
+       OFFICE
+       ===================================================== -->
 
   <section
     id="officePage"
@@ -266,22 +278,17 @@
 
       <div>
 
-        <h1>
+        <h1 id="officeTitle">
           دفتر الديون
         </h1>
 
-        <p>
-          <span id="officeName">
-            المكتب
-          </span>
+        <p id="officeStatus">
+          المكتب
         </p>
 
       </div>
 
-      <button
-        type="button"
-        data-action="logout"
-      >
+      <button id="officeLogoutBtn">
         تسجيل الخروج
       </button>
 
@@ -290,144 +297,349 @@
 
     <main class="container">
 
-      <div class="panel">
+
+      <!-- STATISTICS -->
+
+      <section class="panel">
 
         <h2>
-          <span id="currentOfficeName">
-            المكتب
-          </span>
+          ملخص الحسابات
         </h2>
 
-        <p>
-          بيانات هذا المكتب معزولة عن باقي المكاتب.
-        </p>
+        <div
+          id="statistics"
+          class="cards"
+        ></div>
 
-      </div>
+      </section>
 
 
       <!-- ADD PERSON -->
 
-      <div class="panel">
+      <section class="panel">
 
-        <h2>
+        <h2 id="personFormTitle">
           إضافة شخص
         </h2>
 
-        <form
-          id="personForm"
-          class="form-grid"
-        >
+        <p>
+          أضف بيانات الشخص والدين أو المستحقات.
+        </p>
 
-          <div>
+        <form id="personForm">
 
-            <label>
-              الاسم
-            </label>
+          <input
+            id="personId"
+            type="hidden"
+          >
 
-            <input
-              id="personNameInput"
-              type="text"
-              required
-            >
+          <div class="form-grid">
+
+            <div>
+
+              <label>
+                اسم الشخص
+              </label>
+
+              <input
+                id="personName"
+                type="text"
+                required
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                رقم الهاتف
+              </label>
+
+              <input
+                id="personPhone"
+                type="text"
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                نوع الحساب
+              </label>
+
+              <select
+                id="accountType"
+                required
+              >
+
+                <option value="debtor">
+                  مديون لي
+                </option>
+
+                <option value="creditor">
+                  أنا مديون له
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <div>
+
+              <label>
+                المبلغ
+              </label>
+
+              <input
+                id="personAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                تاريخ الدين
+              </label>
+
+              <input
+                id="debtDate"
+                type="date"
+                required
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                تاريخ الاستحقاق
+              </label>
+
+              <input
+                id="dueDate"
+                type="date"
+              >
+
+            </div>
+
+
+            <div class="full">
+
+              <label>
+                ملاحظات
+              </label>
+
+              <textarea
+                id="personNotes"
+                placeholder="ملاحظات إضافية..."
+              ></textarea>
+
+            </div>
 
           </div>
 
 
-          <div>
+          <div
+            style="
+              display:flex;
+              gap:10px;
+              margin-top:20px;
+              flex-wrap:wrap;
+            "
+          >
 
-            <label>
-              رقم الهاتف
-            </label>
-
-            <input
-              id="personPhoneInput"
-              type="text"
-            >
-
-          </div>
-
-
-          <div>
-
-            <label>
-              المبلغ
-            </label>
-
-            <input
-              id="personAmountInput"
-              type="number"
-              step="0.01"
-              value="0"
-            >
-
-          </div>
-
-
-          <div>
-
-            <label>
-              ملاحظات
-            </label>
-
-            <input
-              id="personNotesInput"
-              type="text"
-            >
-
-          </div>
-
-
-          <div class="full">
+            <button type="submit">
+              حفظ الشخص
+            </button>
 
             <button
-              type="submit"
+              id="cancelEditBtn"
+              type="button"
+              class="hidden"
             >
-              إضافة
+              إلغاء التعديل
             </button>
 
           </div>
 
         </form>
 
-      </div>
+      </section>
 
 
-      <!-- PEOPLE -->
+      <!-- SEARCH -->
 
-      <div class="panel">
+      <section class="panel">
 
         <h2>
           الأشخاص
         </h2>
+
+        <div style="margin-top:15px">
+
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="ابحث بالاسم أو رقم الهاتف..."
+          >
+
+        </div>
+
+      </section>
+
+
+      <!-- PEOPLE -->
+
+      <section class="panel">
 
         <div
           id="peopleList"
           class="cards"
         ></div>
 
-      </div>
+      </section>
+
+
+      <!-- PERSON DETAILS -->
+
+      <section
+        id="personDetailsPanel"
+        class="panel hidden"
+      >
+
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+          "
+        >
+
+          <div>
+
+            <h2 id="detailsName">
+              تفاصيل الشخص
+            </h2>
+
+            <p id="detailsType"></p>
+
+          </div>
+
+          <button id="closeDetailsBtn">
+            إغلاق
+          </button>
+
+        </div>
+
+
+        <div
+          id="personDetails"
+          style="margin-top:20px"
+        ></div>
+
+
+        <!-- ADD PAYMENT -->
+
+        <div
+          style="
+            margin-top:25px;
+            padding-top:20px;
+            border-top:1px solid #e2e8f0;
+          "
+        >
+
+          <h2>
+            تسجيل دفعة
+          </h2>
+
+          <form id="paymentForm">
+
+            <div class="form-grid">
+
+              <div>
+
+                <label>
+                  مبلغ الدفعة
+                </label>
+
+                <input
+                  id="paymentAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                >
+
+              </div>
+
+
+              <div>
+
+                <label>
+                  تاريخ الدفعة
+                </label>
+
+                <input
+                  id="paymentDate"
+                  type="date"
+                  required
+                >
+
+              </div>
+
+
+              <div class="full">
+
+                <label>
+                  ملاحظات
+                </label>
+
+                <textarea
+                  id="paymentNotes"
+                ></textarea>
+
+              </div>
+
+            </div>
+
+            <button
+              type="submit"
+              style="margin-top:15px"
+            >
+              تسجيل الدفعة
+            </button>
+
+          </form>
+
+        </div>
+
+
+        <div
+          id="transactionsList"
+          style="margin-top:25px"
+        ></div>
+
+      </section>
 
     </main>
 
   </section>
 
 
-  <!-- ========================================= -->
-  <!-- SUPABASE -->
-  <!-- ========================================= -->
-
-  <script
-    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-  ></script>
-
-  <script
-    src="supabase-config.js"
-  ></script>
-
-  <script
-    src="app.js"
-  ></script>
+  <script src="app.js"></script>
 
 </body>
-
 </html>
