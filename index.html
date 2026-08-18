@@ -6,158 +6,119 @@
 
   <meta
     name="viewport"
-    content="width=device-width,
-    initial-scale=1,
-    maximum-scale=1,
-    user-scalable=no"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   >
+
+  <meta name="theme-color" content="#111827">
 
   <title>دفتر الديون</title>
 
   <link rel="stylesheet" href="style.css">
 
+  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <script src="config.js"></script>
-  <script defer src="app.js"></script>
+  <!-- إعدادات Supabase الخاصة بك -->
+  <script src="supabase-config.js"></script>
 </head>
 
 <body>
 
-  <!-- LOADING -->
+  <!-- ================= LOADING ================= -->
 
   <div id="loadingScreen" class="loading-screen">
-    <div class="loader"></div>
-    <h2>دفتر الديون</h2>
-    <p>جارٍ التحميل...</p>
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div>جارٍ تحميل دفتر الديون...</div>
+    </div>
   </div>
 
 
-  <!-- LOGIN -->
+  <!-- ================= LOGIN ================= -->
 
-  <section id="loginPage" class="page hidden">
+  <section id="loginScreen" class="login-screen hidden">
 
     <div class="login-card">
 
-      <div class="logo">
-        <span>💰</span>
-      </div>
+      <div class="login-logo">📒</div>
 
       <h1>دفتر الديون</h1>
 
-      <p class="subtitle">
+      <p class="login-subtitle">
         تسجيل الدخول
       </p>
 
       <form id="loginForm">
 
-        <label>
-          البريد الإلكتروني
-        </label>
+        <div class="field">
+          <label for="loginEmail">
+            البريد الإلكتروني
+          </label>
 
-        <input
-          id="loginEmail"
-          type="email"
-          placeholder="example@email.com"
-          required
-          autocomplete="username"
-        >
+          <input
+            id="loginEmail"
+            type="email"
+            autocomplete="username"
+            placeholder="البريد الإلكتروني"
+            required
+          >
+        </div>
 
-        <label>
-          كلمة المرور
-        </label>
+        <div class="field">
+          <label for="loginPassword">
+            كلمة المرور
+          </label>
 
-        <input
-          id="loginPassword"
-          type="password"
-          placeholder="كلمة المرور"
-          required
-          autocomplete="current-password"
-        >
+          <input
+            id="loginPassword"
+            type="password"
+            autocomplete="current-password"
+            placeholder="كلمة المرور"
+            required
+          >
+        </div>
 
         <button
-          id="loginBtn"
           type="submit"
-          class="btn primary full"
+          class="btn btn-primary login-btn"
         >
           تسجيل الدخول
         </button>
 
       </form>
 
-      <div id="loginMessage"></div>
+      <div class="login-info">
+        الحسابات يتم إنشاؤها من صفحة الإدارة فقط.
+      </div>
 
     </div>
 
   </section>
 
 
-  <!-- ADMIN -->
+  <!-- ================= APPLICATION ================= -->
 
-  <section id="adminPage" class="page hidden">
+  <section id="appScreen" class="app-screen hidden">
 
-    <header class="topbar">
+    <header class="app-header">
 
-      <div>
-        <h2>لوحة الإدارة</h2>
-        <span id="adminEmail"></span>
-      </div>
+      <div class="brand">
 
-      <button
-        id="adminLogoutBtn"
-        class="btn danger"
-      >
-        خروج
-      </button>
-
-    </header>
-
-
-    <main class="container">
-
-      <div class="page-title">
+        <div class="brand-icon">
+          📒
+        </div>
 
         <div>
-          <h1>المكاتب</h1>
-          <p>إدارة حسابات المكاتب</p>
+          <h1>دفتر الديون</h1>
+          <span>إدارة حسابات الزبائن</span>
         </div>
-
-        <button
-          id="openOfficeModalBtn"
-          class="btn primary"
-        >
-          + إنشاء مكتب
-        </button>
-
-      </div>
-
-
-      <div id="officesList" class="cards"></div>
-
-    </main>
-
-  </section>
-
-
-  <!-- OFFICE -->
-
-  <section id="officePage" class="page hidden">
-
-    <header class="topbar">
-
-      <div>
-
-        <h2 id="officeName">
-          المكتب
-        </h2>
-
-        <span id="contractStatus"></span>
 
       </div>
 
       <button
-        id="officeLogoutBtn"
-        class="btn danger"
+        id="logoutBtn"
+        class="logout-btn"
+        type="button"
       >
         خروج
       </button>
@@ -165,45 +126,69 @@
     </header>
 
 
-    <main class="container">
+    <main class="dashboard">
 
-      <div class="stats">
+      <div class="section-title">
 
-        <div class="stat">
-          <span>عدد الأشخاص</span>
-          <strong id="peopleCount">0</strong>
+        <div>
+          <h2>الزبائن</h2>
+
+          <p>
+            الحسابات والحركات
+          </p>
         </div>
-
-        <div class="stat debt">
-          <span>إجمالي المديونيات</span>
-          <strong id="totalDebt">0</strong>
-        </div>
-
-        <div class="stat credit">
-          <span>إجمالي الديون لنا</span>
-          <strong id="totalCredit">0</strong>
-        </div>
-
-      </div>
-
-
-      <div class="toolbar">
-
-        <input
-          id="searchPeople"
-          type="search"
-          placeholder="🔎 بحث عن شخص..."
-        >
 
         <button
-          id="openPersonModalBtn"
-          class="btn primary"
+          id="addPersonBtn"
+          class="add-btn"
+          type="button"
         >
-          + إضافة شخص
+          <b>+</b>
+          إضافة شخص
         </button>
 
       </div>
 
+
+      <!-- البحث -->
+
+      <div class="search">
+
+        <span>🔍</span>
+
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="ابحث عن شخص..."
+          autocomplete="off"
+        >
+
+      </div>
+
+
+      <!-- توضيح الألوان -->
+
+      <div class="legend">
+
+        <span>
+          <i class="red"></i>
+          مطلوب
+        </span>
+
+        <span>
+          <i class="green"></i>
+          دائن
+        </span>
+
+        <span>
+          <i class="gray"></i>
+          مسدد
+        </span>
+
+      </div>
+
+
+      <!-- الأشخاص -->
 
       <div id="peopleList" class="people-list"></div>
 
@@ -212,271 +197,41 @@
   </section>
 
 
-  <!-- OFFICE MODAL -->
+  <!-- ================= PERSON DETAILS ================= -->
 
   <div
-    id="officeModal"
-    class="modal hidden"
-  >
-
-    <div class="modal-box">
-
-      <div class="modal-head">
-
-        <h2>إنشاء مكتب</h2>
-
-        <button
-          class="close"
-          data-close="officeModal"
-        >
-          ×
-        </button>
-
-      </div>
+    id="personDetails"
+    class="details-overlay hidden"
+  ></div>
 
 
-      <form id="officeForm">
-
-        <label>اسم المكتب</label>
-
-        <input
-          id="officeNameInput"
-          required
-          placeholder="اسم المكتب"
-        >
-
-
-        <label>البريد الإلكتروني</label>
-
-        <input
-          id="officeEmailInput"
-          type="email"
-          required
-          placeholder="office@email.com"
-        >
-
-
-        <label>كلمة المرور</label>
-
-        <input
-          id="officePasswordInput"
-          type="password"
-          required
-          minlength="6"
-          placeholder="كلمة المرور"
-        >
-
-
-        <label>رقم الهاتف</label>
-
-        <input
-          id="officePhoneInput"
-          placeholder="رقم الهاتف"
-        >
-
-
-        <label>بداية العقد</label>
-
-        <input
-          id="contractStartInput"
-          type="date"
-        >
-
-
-        <label>نهاية العقد</label>
-
-        <input
-          id="contractEndInput"
-          type="date"
-        >
-
-
-        <label class="checkbox-row">
-
-          <input
-            id="officeActiveInput"
-            type="checkbox"
-            checked
-          >
-
-          المكتب فعال
-
-        </label>
-
-
-        <button
-          id="saveOfficeBtn"
-          class="btn primary full"
-          type="submit"
-        >
-          إنشاء المكتب
-        </button>
-
-      </form>
-
-      <div id="officeMessage"></div>
-
-    </div>
-
-  </div>
-
-
-  <!-- PERSON MODAL -->
+  <!-- ================= PERSON MODAL ================= -->
 
   <div
     id="personModal"
-    class="modal hidden"
-  >
-
-    <div class="modal-box">
-
-      <div class="modal-head">
-
-        <h2 id="personModalTitle">
-          إضافة شخص
-        </h2>
-
-        <button
-          class="close"
-          data-close="personModal"
-        >
-          ×
-        </button>
-
-      </div>
+    class="modal-container hidden"
+  ></div>
 
 
-      <form id="personForm">
-
-        <input
-          type="hidden"
-          id="personId"
-        >
-
-
-        <label>اسم الشخص</label>
-
-        <input
-          id="personName"
-          required
-          placeholder="اسم الشخص"
-        >
-
-
-        <label>رقم الهاتف</label>
-
-        <input
-          id="personPhone"
-          placeholder="رقم الهاتف"
-        >
-
-
-        <label>نوع الحساب</label>
-
-        <div class="type-buttons">
-
-          <button
-            type="button"
-            class="type-btn active debt-type"
-            data-type="debt"
-          >
-            مديون لنا
-          </button>
-
-          <button
-            type="button"
-            class="type-btn credit-type"
-            data-type="credit"
-          >
-            نحن مديونون له
-          </button>
-
-        </div>
-
-
-        <input
-          type="hidden"
-          id="personType"
-          value="debt"
-        >
-
-
-        <label>المبلغ</label>
-
-        <input
-          id="personAmount"
-          type="number"
-          min="0"
-          step="0.01"
-          required
-          placeholder="0"
-        >
-
-
-        <label>التاريخ</label>
-
-        <input
-          id="personDate"
-          type="date"
-          required
-        >
-
-
-        <label>ملاحظات</label>
-
-        <textarea
-          id="personNotes"
-          rows="3"
-          placeholder="ملاحظات اختيارية"
-        ></textarea>
-
-
-        <button
-          type="submit"
-          class="btn primary full"
-        >
-          حفظ
-        </button>
-
-      </form>
-
-      <div id="personMessage"></div>
-
-    </div>
-
-  </div>
-
-
-  <!-- PERSON DETAILS -->
+  <!-- ================= TRANSACTION MODAL ================= -->
 
   <div
-    id="detailsModal"
-    class="modal hidden"
-  >
+    id="transactionModal"
+    class="modal-container hidden"
+  ></div>
 
-    <div class="modal-box">
 
-      <div class="modal-head">
+  <!-- ================= TOAST ================= -->
 
-        <h2 id="detailsName">
-          تفاصيل الشخص
-        </h2>
+  <div
+    id="toast"
+    class="toast hidden"
+  ></div>
 
-        <button
-          class="close"
-          data-close="detailsModal"
-        >
-          ×
-        </button>
 
-      </div>
+  <!-- ================= APP ================= -->
 
-      <div id="detailsContent"></div>
-
-    </div>
-
-  </div>
-
+  <script src="app.js?v=31"></script>
 
 </body>
 </html>
