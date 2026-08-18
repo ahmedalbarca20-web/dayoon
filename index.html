@@ -1,237 +1,908 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
 
-  <meta name="theme-color" content="#111827">
+    <title>دفتر الديون</title>
 
-  <title>دفتر الديون</title>
-
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <!-- إعدادات Supabase الخاصة بك -->
-  <script src="supabase-config.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <!-- ================= LOADING ================= -->
+<!-- =====================================================
+     LOADING
+===================================================== -->
 
-  <div id="loadingScreen" class="loading-screen">
-    <div class="loading-card">
-      <div class="spinner"></div>
-      <div>جارٍ تحميل دفتر الديون...</div>
+<div id="loadingScreen" class="loading-screen">
+    <div class="loading-box">
+        <div class="spinner"></div>
+        <div>جارٍ تحميل دفتر الديون...</div>
     </div>
-  </div>
+</div>
 
 
-  <!-- ================= LOGIN ================= -->
+<!-- =====================================================
+     LOGIN
+===================================================== -->
 
-  <section id="loginScreen" class="login-screen hidden">
+<section id="loginScreen" class="screen hidden">
 
     <div class="login-card">
 
-      <div class="login-logo">📒</div>
-
-      <h1>دفتر الديون</h1>
-
-      <p class="login-subtitle">
-        تسجيل الدخول
-      </p>
-
-      <form id="loginForm">
-
-        <div class="field">
-          <label for="loginEmail">
-            البريد الإلكتروني
-          </label>
-
-          <input
-            id="loginEmail"
-            type="email"
-            autocomplete="username"
-            placeholder="البريد الإلكتروني"
-            required
-          >
+        <div class="logo">
+            📒
         </div>
 
-        <div class="field">
-          <label for="loginPassword">
-            كلمة المرور
-          </label>
+        <h1>دفتر الديون</h1>
 
-          <input
-            id="loginPassword"
-            type="password"
-            autocomplete="current-password"
-            placeholder="كلمة المرور"
-            required
-          >
-        </div>
+        <p class="subtitle">
+            تسجيل الدخول
+        </p>
 
-        <button
-          type="submit"
-          class="btn btn-primary login-btn"
-        >
-          تسجيل الدخول
-        </button>
+        <form id="loginForm">
 
-      </form>
+            <label>
+                البريد الإلكتروني
+            </label>
 
-      <div class="login-info">
-        الحسابات يتم إنشاؤها من صفحة الإدارة فقط.
-      </div>
+            <input
+                id="loginEmail"
+                type="email"
+                autocomplete="username"
+                placeholder="البريد الإلكتروني"
+                required
+            >
+
+            <label>
+                كلمة المرور
+            </label>
+
+            <input
+                id="loginPassword"
+                type="password"
+                autocomplete="current-password"
+                placeholder="كلمة المرور"
+                required
+            >
+
+            <button
+                type="submit"
+                class="primary-btn full"
+            >
+                دخول
+            </button>
+
+        </form>
+
+        <div id="loginError" class="form-error hidden"></div>
 
     </div>
 
-  </section>
+</section>
 
 
-  <!-- ================= APPLICATION ================= -->
+<!-- =====================================================
+     ADMIN
+===================================================== -->
 
-  <section id="appScreen" class="app-screen hidden">
+<section id="adminScreen" class="screen hidden">
 
-    <header class="app-header">
-
-      <div class="brand">
-
-        <div class="brand-icon">
-          📒
-        </div>
+    <header class="topbar">
 
         <div>
-          <h1>دفتر الديون</h1>
-          <span>إدارة حسابات الزبائن</span>
+            <h2>لوحة الأدمن</h2>
+            <small>إدارة المكاتب</small>
         </div>
 
-      </div>
-
-      <button
-        id="logoutBtn"
-        class="logout-btn"
-        type="button"
-      >
-        خروج
-      </button>
+        <button
+            id="adminLogoutBtn"
+            class="danger-outline"
+            type="button"
+        >
+            خروج
+        </button>
 
     </header>
 
 
-    <main class="dashboard">
+    <main class="page">
 
-      <div class="section-title">
+        <div class="page-title-row">
 
-        <div>
-          <h2>الزبائن</h2>
+            <div>
+                <h3>المكاتب</h3>
+                <p>إنشاء وتعطيل حسابات المكاتب</p>
+            </div>
 
-          <p>
-            الحسابات والحركات
-          </p>
+            <button
+                id="openCreateOfficeBtn"
+                class="primary-btn"
+                type="button"
+            >
+                + إنشاء مكتب
+            </button>
+
         </div>
 
-        <button
-          id="addPersonBtn"
-          class="add-btn"
-          type="button"
-        >
-          <b>+</b>
-          إضافة شخص
-        </button>
 
-      </div>
-
-
-      <!-- البحث -->
-
-      <div class="search">
-
-        <span>🔍</span>
-
-        <input
-          id="searchInput"
-          type="search"
-          placeholder="ابحث عن شخص..."
-          autocomplete="off"
-        >
-
-      </div>
-
-
-      <!-- توضيح الألوان -->
-
-      <div class="legend">
-
-        <span>
-          <i class="red"></i>
-          مطلوب
-        </span>
-
-        <span>
-          <i class="green"></i>
-          دائن
-        </span>
-
-        <span>
-          <i class="gray"></i>
-          مسدد
-        </span>
-
-      </div>
-
-
-      <!-- الأشخاص -->
-
-      <div id="peopleList" class="people-list"></div>
+        <div id="officesList" class="office-list">
+            <div class="empty">
+                لا توجد مكاتب
+            </div>
+        </div>
 
     </main>
 
-  </section>
+</section>
 
 
-  <!-- ================= PERSON DETAILS ================= -->
+<!-- =====================================================
+     OFFICE DASHBOARD
+===================================================== -->
 
-  <div
-    id="personDetails"
-    class="details-overlay hidden"
-  ></div>
+<section id="officeScreen" class="screen hidden">
+
+    <header class="topbar">
+
+        <div>
+            <h2 id="officeTitle">
+                دفتر الديون
+            </h2>
+
+            <small id="officePhone"></small>
+        </div>
+
+        <button
+            id="officeLogoutBtn"
+            class="danger-outline"
+            type="button"
+        >
+            خروج
+        </button>
+
+    </header>
 
 
-  <!-- ================= PERSON MODAL ================= -->
+    <main class="page">
 
-  <div
+        <!-- TOTALS -->
+
+        <section class="totals-grid">
+
+            <div class="total-card debt-card">
+
+                <span>
+                    مجموع الديون
+                </span>
+
+                <strong id="totalDebt">
+                    0
+                </strong>
+
+            </div>
+
+
+            <div class="total-card credit-card">
+
+                <span>
+                    مجموع الدائن
+                </span>
+
+                <strong id="totalCredit">
+                    0
+                </strong>
+
+            </div>
+
+
+            <div class="total-card net-card">
+
+                <span>
+                    الصافي
+                </span>
+
+                <strong id="totalNet">
+                    0
+                </strong>
+
+            </div>
+
+        </section>
+
+
+        <!-- PEOPLE HEADER -->
+
+        <div class="section-header">
+
+            <div>
+                <h3>الزبائن</h3>
+
+                <span id="peopleCount">
+                    0 شخص
+                </span>
+            </div>
+
+            <button
+                id="openAddPersonBtn"
+                class="primary-btn"
+                type="button"
+            >
+                + إضافة شخص
+            </button>
+
+        </div>
+
+
+        <!-- SEARCH -->
+
+        <div class="search-box">
+
+            <input
+                id="peopleSearch"
+                type="search"
+                placeholder="بحث عن اسم أو رقم..."
+                autocomplete="off"
+            >
+
+        </div>
+
+
+        <!-- PEOPLE -->
+
+        <div id="peopleList" class="people-list">
+
+            <div class="empty">
+                لا يوجد أشخاص حالياً
+            </div>
+
+        </div>
+
+    </main>
+
+</section>
+
+
+<!-- =====================================================
+     CREATE OFFICE MODAL
+===================================================== -->
+
+<div
+    id="createOfficeModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <h3>
+                إنشاء مكتب
+            </h3>
+
+            <button
+                id="closeCreateOfficeBtn"
+                class="close-btn"
+                type="button"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <form id="createOfficeForm">
+
+            <label>
+                اسم المكتب
+            </label>
+
+            <input
+                id="officeNameInput"
+                type="text"
+                placeholder="مثال: مكتب أحمد"
+                required
+            >
+
+
+            <label>
+                البريد الإلكتروني
+            </label>
+
+            <input
+                id="officeEmailInput"
+                type="email"
+                placeholder="office@example.com"
+                required
+            >
+
+
+            <label>
+                كلمة المرور
+            </label>
+
+            <input
+                id="officePasswordInput"
+                type="password"
+                minlength="6"
+                placeholder="6 أحرف أو أكثر"
+                required
+            >
+
+
+            <label>
+                رقم الهاتف
+            </label>
+
+            <input
+                id="officePhoneInput"
+                type="tel"
+                placeholder="رقم المكتب"
+            >
+
+
+            <div class="modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelCreateOfficeBtn"
+                    class="secondary-btn"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    type="submit"
+                    class="primary-btn"
+                >
+                    إنشاء المكتب
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     ADD PERSON MODAL
+===================================================== -->
+
+<div
+    id="addPersonModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <h3>
+                إضافة شخص
+            </h3>
+
+            <button
+                id="closeAddPersonBtn"
+                class="close-btn"
+                type="button"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <form id="addPersonForm">
+
+            <label>
+                الاسم
+            </label>
+
+            <input
+                id="personInputName"
+                type="text"
+                required
+                placeholder="اسم الشخص"
+            >
+
+
+            <label>
+                رقم الهاتف
+            </label>
+
+            <input
+                id="personInputPhone"
+                type="tel"
+                placeholder="رقم الهاتف"
+            >
+
+
+            <label>
+                العنوان
+            </label>
+
+            <input
+                id="personInputAddress"
+                type="text"
+                placeholder="العنوان"
+            >
+
+
+            <label>
+                المبلغ الحالي
+            </label>
+
+            <input
+                id="personInputBalance"
+                type="number"
+                step="0.01"
+                placeholder="مثال: -50000 أو 50000"
+            >
+
+            <small class="field-help">
+                السالب = مديون عليك، الموجب = دائن لك
+            </small>
+
+
+            <label>
+                تاريخ الدين
+            </label>
+
+            <input
+                id="personInputDate"
+                type="date"
+            >
+
+
+            <label>
+                ملاحظات
+            </label>
+
+            <textarea
+                id="personInputNotes"
+                rows="3"
+                placeholder="ملاحظات..."
+            ></textarea>
+
+
+            <div class="modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelAddPersonBtn"
+                    class="secondary-btn"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    type="submit"
+                    class="primary-btn"
+                >
+                    حفظ الشخص
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     PERSON MODAL
+===================================================== -->
+
+<div
     id="personModal"
-    class="modal-container hidden"
-  ></div>
+    class="modal hidden"
+>
+
+    <div class="modal-card person-modal-card">
+
+        <div class="modal-header">
+
+            <div>
+                <h3 id="personName">
+                    الشخص
+                </h3>
+
+                <div
+                    id="personBalance"
+                    class="person-big-balance"
+                >
+                    0
+                </div>
+            </div>
+
+            <button
+                id="closePersonBtn"
+                class="close-btn"
+                type="button"
+            >
+                ×
+            </button>
+
+        </div>
 
 
-  <!-- ================= TRANSACTION MODAL ================= -->
+        <!-- PERSONAL DATA -->
 
-  <div
-    id="transactionModal"
-    class="modal-container hidden"
-  ></div>
+        <div class="personal-info">
+
+            <div>
+                <span>الهاتف</span>
+                <strong id="personPhone">-</strong>
+            </div>
+
+            <div>
+                <span>العنوان</span>
+                <strong id="personAddress">-</strong>
+            </div>
+
+            <div>
+                <span>ملاحظات</span>
+                <strong id="personNotes">-</strong>
+            </div>
+
+        </div>
 
 
-  <!-- ================= TOAST ================= -->
+        <!-- ACTIONS -->
 
-  <div
+        <div class="person-actions">
+
+            <button
+                id="openPaymentBtn"
+                class="success-btn"
+                type="button"
+            >
+                + تسجيل تسديد
+            </button>
+
+            <button
+                id="openDebtBtn"
+                class="danger-btn"
+                type="button"
+            >
+                + إضافة دين
+            </button>
+
+            <button
+                id="openEditPersonBtn"
+                class="secondary-btn"
+                type="button"
+            >
+                تعديل البيانات
+            </button>
+
+            <button
+                id="deletePersonBtn"
+                class="danger-outline"
+                type="button"
+            >
+                حذف الشخص
+            </button>
+
+        </div>
+
+
+        <!-- HISTORY -->
+
+        <div class="history-title">
+            سجل الحركات
+        </div>
+
+        <div
+            id="transactionHistory"
+            class="transaction-history"
+        >
+            <div class="empty">
+                لا توجد حركات
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     PAYMENT MODAL
+===================================================== -->
+
+<div
+    id="paymentModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <h3>
+                تسجيل تسديد
+            </h3>
+
+            <button
+                id="closePaymentBtn"
+                class="close-btn"
+                type="button"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <form id="paymentForm">
+
+            <label>
+                المبلغ
+            </label>
+
+            <input
+                id="paymentAmount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+            >
+
+
+            <label>
+                ملاحظة
+            </label>
+
+            <input
+                id="paymentNote"
+                type="text"
+                placeholder="مثال: تسديد دفعة"
+            >
+
+
+            <div class="modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelPaymentBtn"
+                    class="secondary-btn"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    type="submit"
+                    class="success-btn"
+                >
+                    حفظ التسديد
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     DEBT MODAL
+===================================================== -->
+
+<div
+    id="debtModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <h3>
+                إضافة دين
+            </h3>
+
+            <button
+                id="closeDebtBtn"
+                class="close-btn"
+                type="button"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <form id="debtForm">
+
+            <label>
+                المبلغ
+            </label>
+
+            <input
+                id="debtAmount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+            >
+
+
+            <label>
+                ملاحظة
+            </label>
+
+            <input
+                id="debtNote"
+                type="text"
+                placeholder="مثال: شراء بضاعة"
+            >
+
+
+            <div class="modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelDebtBtn"
+                    class="secondary-btn"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    type="submit"
+                    class="danger-btn"
+                >
+                    حفظ الدين
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     EDIT PERSON MODAL
+===================================================== -->
+
+<div
+    id="editPersonModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <h3>
+                تعديل الشخص
+            </h3>
+
+            <button
+                id="closeEditPersonBtn"
+                class="close-btn"
+                type="button"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <form id="editPersonForm">
+
+            <label>
+                الاسم
+            </label>
+
+            <input
+                id="editPersonName"
+                type="text"
+                required
+            >
+
+
+            <label>
+                الهاتف
+            </label>
+
+            <input
+                id="editPersonPhone"
+                type="tel"
+            >
+
+
+            <label>
+                العنوان
+            </label>
+
+            <input
+                id="editPersonAddress"
+                type="text"
+            >
+
+
+            <label>
+                تاريخ الدين
+            </label>
+
+            <input
+                id="editPersonDate"
+                type="date"
+            >
+
+
+            <label>
+                ملاحظات
+            </label>
+
+            <textarea
+                id="editPersonNotes"
+                rows="3"
+            ></textarea>
+
+
+            <div class="modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelEditPersonBtn"
+                    class="secondary-btn"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    type="submit"
+                    class="primary-btn"
+                >
+                    حفظ التعديل
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     TOAST
+===================================================== -->
+
+<div
     id="toast"
     class="toast hidden"
-  ></div>
+></div>
 
 
-  <!-- ================= APP ================= -->
+<!-- =====================================================
+     SCRIPTS
+===================================================== -->
 
-  <script src="app.js?v=31"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="supabase-config.js"></script>
+
+<script src="app.js"></script>
 
 </body>
 </html>
