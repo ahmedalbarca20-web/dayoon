@@ -52,17 +52,6 @@ export async function updateOffice(officeId, updates) {
  * Create a login account then register the office row linked to that user.
  */
 export async function createOffice(officeData) {
-  const email = (officeData.email || "").trim().toLowerCase();
-  const password = officeData.password || "";
-
-  if (!email) {
-    throw new Error("البريد الإلكتروني مطلوب لإنشاء حساب الدخول");
-  }
-
-  if (password.length < 6) {
-    throw new Error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-  }
-
   const {
     data: { session: adminSession },
   } = await supabase.auth.getSession();
@@ -71,61 +60,24 @@ export async function createOffice(officeData) {
     throw new Error("جلسة المشرف غير موجودة. أعد تسجيل الدخول ثم حاول مجدداً");
   }
 
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { role: "office" },
+  const response = await fetch("/api/create-office", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${adminSession.access_token}`,
     },
+    body: JSON.stringify(officeData),
   });
 
-  if (signUpError) {
-    console.error("Error creating office user:", signUpError);
-    throw signUpError;
-  }
-
-  const restore = await supabase.auth.setSession({
-    access_token: adminSession.access_token,
-    refresh_token: adminSession.refresh_token,
-  });
-
-  if (restore.error) {
-    console.error("Error restoring admin session:", restore.error);
-    throw new Error("تم إنشاء المستخدم لكن تعذر استعادة جلسة المشرف. أعد تسجيل الدخول");
-  }
-
-  const userId = signUpData.user?.id || null;
-
-  const payload = {
-    name: officeData.name.trim(),
-    username: (officeData.username || officeData.name).trim(),
-    email,
-    user_id: userId,
-    active: officeData.active !== undefined ? officeData.active : true,
-    contract_start: officeData.contract_start || new Date().toISOString().split("T")[0],
-    contract_end: officeData.contract_end || null,
-    role: "office",
-    type: officeData.type || "standard",
-  };
-
-  let { data, error } = await supabase.from("offices").insert([payload]).select().single();
-
-  if (error) {
-    const retryPayload = { ...payload };
-    delete retryPayload.user_id;
-    delete retryPayload.role;
-    delete retryPayload.type;
-    const retry = await supabase.from("offices").insert([retryPayload]).select().single();
-    data = retry.data;
-    error = retry.error;
-  }
-
-  if (error) {
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(result.error || "تعذر إنشاء المكتب");
+    error.status = response.status;
     console.error("Error creating office:", error);
     throw error;
   }
 
-  return data;
+  return result.office;
 }
 
 /**
