@@ -33,6 +33,7 @@ function formatDate(date) {
 function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [peopleWithDebts, setPeopleWithDebts] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [statsData, setStatsData] = useState({
@@ -46,26 +47,35 @@ function Dashboard() {
     async function loadDashboardData() {
       try {
         setLoading(true);
+        setLoadError("");
 
         const office = await getCurrentOffice();
-        if (!office) return;
+        if (!office) {
+          setLoadError("لم يتم العثور على المكتب المرتبط بالحساب");
+          return;
+        }
 
         // Fetch people
-        const { data: people } = await supabase
+        const { data: people, error: peopleError } = await supabase
           .from("people")
           .select("*")
           .eq("office_id", office.id);
 
+        if (peopleError) throw peopleError;
+
         // Fetch transactions
-        const { data: transactions } = await supabase
+        const { data: transactions, error: transactionsError } = await supabase
           .from("transactions")
-          .select("*, people(name)")
+          .select("*")
           .eq("office_id", office.id)
           .order("transaction_date", { ascending: false })
           .order("created_at", { ascending: false });
 
+        if (transactionsError) throw transactionsError;
+
         const allTransactions = transactions || [];
         const allPeople = people || [];
+        const peopleById = new Map(allPeople.map((person) => [person.id, person]));
 
         let totalDebt = 0;
         let totalPayments = 0;
@@ -77,20 +87,30 @@ function Dashboard() {
           if (type === "payment") totalPayments += amt;
         });
 
-        const remaining = Math.max(0, totalDebt - totalPayments);
-
         // Calculate balances per person
         const computedPeople = allPeople.map((p) => {
           const pTrans = allTransactions.filter((t) => t.person_id === p.id);
+          const hasTransactions = pTrans.length > 0;
           const pDebt = pTrans
             .filter((t) => (t.transaction_type || t.type || "").toLowerCase() === "debt")
             .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
           const pPay = pTrans
             .filter((t) => (t.transaction_type || t.type || "").toLowerCase() === "payment")
             .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
-          const bal = Math.max(0, pDebt - pPay);
-          return { ...p, currentBalance: bal, totalDebt: pDebt, totalPayments: pPay };
+          const savedBalance = Math.max(0, Number(p.balance ?? p.amount) || 0);
+          const debt = hasTransactions ? pDebt : savedBalance;
+          const payments = hasTransactions ? pPay : 0;
+          const bal = hasTransactions ? Math.max(0, debt - payments) : savedBalance;
+          return { ...p, currentBalance: bal, totalDebt: debt, totalPayments: payments };
         });
+
+        const savedPeopleDebt = computedPeople
+          .filter((person) => !allTransactions.some((t) => t.person_id === person.id))
+          .reduce((sum, person) => sum + person.totalDebt, 0);
+        const remaining = computedPeople.reduce(
+          (sum, person) => sum + person.currentBalance,
+          0
+        );
 
         const debtors = computedPeople
           .filter((p) => p.currentBalance > 0)
@@ -99,15 +119,21 @@ function Dashboard() {
 
         setStatsData({
           peopleCount: allPeople.length,
-          totalDebt,
+          totalDebt: totalDebt + savedPeopleDebt,
           totalPayments,
           remaining,
         });
 
         setPeopleWithDebts(debtors);
-        setRecentTransactions(allTransactions.slice(0, 5));
+        setRecentTransactions(
+          allTransactions.slice(0, 5).map((transaction) => ({
+            ...transaction,
+            personName: peopleById.get(transaction.person_id)?.name,
+          }))
+        );
       } catch (err) {
         console.error("Dashboard error:", err);
+        setLoadError(err?.message || "تعذر تحميل قراءات الداشبورد");
       } finally {
         setLoading(false);
       }
@@ -175,6 +201,12 @@ function Dashboard() {
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+          تعذر تحميل بعض قراءات الداشبورد: {loadError}
+        </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -425,7 +457,7 @@ function Dashboard() {
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3.5 pr-2 font-bold text-slate-900">
-                          {tx.people?.name || "عميل"}
+                          {tx.personName || "عميل"}
                         </td>
                         <td className="py-3.5 px-3">
                           <span

@@ -13,6 +13,7 @@ export default function Settings() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState("");
   const [error, setError] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState("checking");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -27,11 +28,22 @@ export default function Settings() {
         }
 
         const office = await getCurrentOffice();
+        if (!office) {
+          throw new Error("لم يتم العثور على بيانات المكتب الحالية");
+        }
+
+        if (!cancelled) {
+          setConnectionStatus("connected");
+        }
         if (!cancelled && office?.name) {
           setOfficeName(office.name);
         }
       } catch (err) {
         console.error(err);
+        if (!cancelled) {
+          setConnectionStatus("error");
+          setError(err?.message || "تعذر الاتصال بقاعدة البيانات");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -239,11 +251,31 @@ export default function Settings() {
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4 border border-slate-100">
             <div className="flex items-center gap-2.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div
+                className={`h-2.5 w-2.5 rounded-full ${
+                  connectionStatus === "connected"
+                    ? "bg-emerald-500 animate-pulse"
+                    : connectionStatus === "checking"
+                    ? "bg-amber-500 animate-pulse"
+                    : "bg-rose-500"
+                }`}
+              />
               <span className="text-xs font-bold text-slate-700">اتصال السحابة (Supabase)</span>
             </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">
-              متصل ونشط
+            <span
+              className={`text-xs font-bold px-2.5 py-1 rounded-md ${
+                connectionStatus === "connected"
+                  ? "text-emerald-600 bg-emerald-50"
+                  : connectionStatus === "checking"
+                  ? "text-amber-600 bg-amber-50"
+                  : "text-rose-600 bg-rose-50"
+              }`}
+            >
+              {connectionStatus === "connected"
+                ? "متصل ونشط"
+                : connectionStatus === "checking"
+                ? "جاري الفحص..."
+                : "تعذر الاتصال"}
             </span>
           </div>
 

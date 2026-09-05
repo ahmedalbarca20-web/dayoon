@@ -33,6 +33,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [people, setPeople] = useState([]);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all"); // all, debt, payment
   const [dateFilter, setDateFilter] = useState("all"); // all, month, year
@@ -41,25 +42,39 @@ export default function Reports() {
     async function loadReportsData() {
       try {
         setLoading(true);
+        setLoadError("");
         const office = await getCurrentOffice();
-        if (!office) return;
+        if (!office) {
+          setLoadError("لم يتم العثور على المكتب المرتبط بالحساب");
+          return;
+        }
 
-        const { data: peopleData } = await supabase
+        const { data: peopleData, error: peopleError } = await supabase
           .from("people")
           .select("*")
           .eq("office_id", office.id);
+        if (peopleError) throw peopleError;
 
-        const { data: transactionsData } = await supabase
+        const { data: transactionsData, error: transactionsError } = await supabase
           .from("transactions")
-          .select("*, people(name, phone)")
+          .select("*")
           .eq("office_id", office.id)
           .order("transaction_date", { ascending: false })
           .order("created_at", { ascending: false });
+        if (transactionsError) throw transactionsError;
+
+        const peopleById = new Map((peopleData || []).map((person) => [person.id, person]));
+        const transactionsWithPeople = (transactionsData || []).map((transaction) => ({
+          ...transaction,
+          personName: peopleById.get(transaction.person_id)?.name || "",
+          personPhone: peopleById.get(transaction.person_id)?.phone || "",
+        }));
 
         setPeople(peopleData || []);
-        setTransactions(transactionsData || []);
+        setTransactions(transactionsWithPeople);
       } catch (err) {
         console.error("Reports loading error:", err);
+        setLoadError(err?.message || "تعذر تحميل إحصائيات التقارير");
       } finally {
         setLoading(false);
       }
@@ -90,8 +105,8 @@ export default function Reports() {
 
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      const personName = t.people?.name?.toLowerCase() || "";
-      const personPhone = t.people?.phone || "";
+      const personName = t.personName?.toLowerCase() || "";
+      const personPhone = t.personPhone || "";
       const note = t.note?.toLowerCase() || "";
       if (!personName.includes(q) && !personPhone.includes(q) && !note.includes(q)) {
         return false;
@@ -101,28 +116,31 @@ export default function Reports() {
     return true;
   });
 
-  const totalDebt = transactions
-    .filter((t) => (t.transaction_type || t.type || "").toLowerCase() === "debt")
-    .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
-
   const totalPayments = transactions
     .filter((t) => (t.transaction_type || t.type || "").toLowerCase() === "payment")
     .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
-  const remaining = Math.max(0, totalDebt - totalPayments);
-  const collectionRate = totalDebt > 0 ? Math.round((totalPayments / totalDebt) * 100) : 0;
-
-  const peopleBalances = people
+  const peopleWithBalances = people
     .map((p) => {
       const pTrans = transactions.filter((t) => t.person_id === p.id);
+      const hasTransactions = pTrans.length > 0;
       const pDebt = pTrans
         .filter((t) => (t.transaction_type || t.type || "").toLowerCase() === "debt")
         .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
       const pPay = pTrans
         .filter((t) => (t.transaction_type || t.type || "").toLowerCase() === "payment")
         .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
-      return { ...p, remaining: Math.max(0, pDebt - pPay) };
-    })
+      const savedBalance = Math.max(0, Number(p.balance ?? p.amount) || 0);
+      const debt = hasTransactions ? pDebt : savedBalance;
+      const payments = hasTransactions ? pPay : 0;
+      return { ...p, totalDebt: debt, remaining: hasTransactions ? Math.max(0, debt - payments) : savedBalance };
+    });
+
+  const totalDebt = peopleWithBalances.reduce((sum, person) => sum + person.totalDebt, 0);
+  const remaining = peopleWithBalances.reduce((sum, person) => sum + person.remaining, 0);
+  const collectionRate = totalDebt > 0 ? Math.round((totalPayments / totalDebt) * 100) : 0;
+
+  const peopleBalances = peopleWithBalances
     .filter((p) => p.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining);
 
@@ -132,7 +150,7 @@ export default function Reports() {
       ...filteredTransactions.map((tx) => {
         const isTxDebt = (tx.transaction_type || tx.type || "").toLowerCase() === "debt";
         return [
-          tx.people?.name || "",
+          tx.personName || "",
           isTxDebt ? "دين" : "تسديد",
           String(Math.abs(Number(tx.amount) || 0)),
           tx.transaction_date || tx.created_at || "",
@@ -315,6 +333,12 @@ export default function Reports() {
               <span className="text-sm font-semibold">جاري تجهيز بيانات التقرير...</span>
             </div>
           </div>
+        ) : loadError ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-12 text-center">
+            <AlertCircle size={42} className="mx-auto text-amber-500" />
+            <h3 className="mt-3 text-base font-bold text-amber-800">تعذر تحميل إحصائيات التقارير</h3>
+            <p className="mt-1 text-xs text-amber-700">{loadError}</p>
+          </div>
         ) : filteredTransactions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center">
             <FileText size={42} className="mx-auto text-slate-300" />
@@ -349,7 +373,7 @@ export default function Reports() {
                         {idx + 1}
                       </td>
                       <td className="px-4 py-3 font-bold text-slate-900">
-                        {tx.people?.name || "عميل"}
+                        {tx.personName || "عميل"}
                       </td>
                       <td className="px-4 py-3">
                         <span

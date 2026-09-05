@@ -40,7 +40,9 @@ function getContractStatus(contractEnd) {
     return { label: "عقد دائم", color: "text-slate-700 bg-slate-100", state: "permanent" };
   }
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const end = new Date(contractEnd);
+  end.setHours(0, 0, 0, 0);
   const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {

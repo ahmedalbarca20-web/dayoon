@@ -21,8 +21,9 @@ function OfficePage({ children }) {
 function App() {
   return (
     <Routes>
-      <Route path="/Login" element={<Login />} />
-      <Route path="/" element={<Navigate to="/Login" replace />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/Login" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
       <Route
         path="/admin"
